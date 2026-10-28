@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper."
+title: "sincFeyn: Sinc-function evaluation of QED vertex graphs for the electron g-2"
+authors:
+  - family-names: Easther
+    given-names: Richard
+    affiliation: "University of Auckland"
+license: MIT
+version: "1.0.0"
+date-released: "2026-10-07"
+repository-code: "https://github.com/reasther/sincFeyn"
+abstract: >-
+  Two-, three- and four-loop QED contributions to the electron anomalous magnetic moment from
+  Schwinger-parametric integrands with Volkov's pointwise forest subtraction, evaluated by
+  pruned hierarchical Sinc (trapezoid in ln s) sums. The code was written almost entirely by an
+  AI coding assistant (Claude, Anthropic) under the author's direction.

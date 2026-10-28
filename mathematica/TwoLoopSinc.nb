@@ -1,0 +1,150 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+Notebook[{
+Cell["Two-loop g-2: general terms of the Sinc sums", "Title"],
+
+Cell["All two-loop vertex graphs: the four without fermion loops (g2_00 ... g2_03, Volkov numbering) and v2_00, the one-loop vertex with a Pi2 (electron loop) insertion on its photon; with the mirror weights w these are the seven two-loop diagrams of A_1^(4). For each, the general term of the Sinc (trapezoid) sum written three ways:
+
+  \"All\"      every Schwinger parameter summed, D = 6, using the exponential (Schwinger) form of the integrand;
+  \"Delta\"    the overall scale integrated exactly and the delta function delta(1 - x4) used to drop the sum over the photon x4 (Cheng-Wu), D = 5;
+  \"DeltaGL\"  as \"Delta\", and the split u of the two electron lines at the external vertex done exactly by one node at the weighted mean of u, so only sigma = sa + sb is summed; lines with the same loop momentum that enter only through their sum are summed as one variable. D = 4 for g2_00, g2_02 and D = 3 for g2_01, g2_03, v2_00. This is what sincqed sums.
+
+The integrands come from the generated C kernels (kernels/g2/*.c: FORM Dirac algebra with the generator's line identifications, translated by check/c2wl.py; v2_00 by hand) and live in TwoLoopSinc.wl, which must sit next to this notebook. Values are coefficients of (alpha/pi)^2 before the mirror weight w; exact[g] (closed forms in exactForm[g]) includes w.", "Text"],
+
+Cell["Setup", "Section"],
+
+Cell["SetDirectory[NotebookDirectory[]];
+Get[\"TwoLoopSinc.wl\"]", "Input"],
+
+Cell["TableForm[Table[{g, volkov[g], mirror[g], dim[\"All\", g], dim[\"Delta\", g], dim[\"DeltaGL\", g], exact[g]}, {g, graphs}],
+  TableHeadings -> {None, {\"graph\", \"Volkov\", \"w\", \"D All\", \"D Delta\", \"D DeltaGL\", \"exact (w incl.)\"}}]", "Input"],
+
+Cell["The three forms", "Section"],
+
+Cell["The kernel ptg2NN[x0, ..., x5, pw] is the Volkov-subtracted integrand at Schwinger parameters x0..x3 (the electron segments 1-2, 2-3, 3-4, 4-5), x4 (the first photon in the Volkov string, which starts at vertex 1) and x5 (the second photon); the drawings in diagrams/ show the labels. In every forest block it is a sum of terms T_n(x)/V(x)^n, n = 1, 2; the argument pw says what to put for 1/V^n:
+
+  projPW[V, n] = 1/V^n                 projective form (scale already integrated), homogeneous of degree -6
+  schwPW[V, n] = Exp[-V]/Gamma[n]      Schwinger form (scale not integrated)
+
+ptv200 (v2_00) uses the same slots: x0, x1 the electron lines at the external vertex, x2 and x4 the photon either side of the electron loop, x3 and x5 the two loop lines; it has the single power n = 1. Since each T_n has degree n - 6, Int d^6x schw = Int d^6x delta(1 - x4) proj, which is the step from \"All\" to \"Delta\". The lattice is s_i = Exp[z_i], z_i = h k_i, and the general term is  h^D Exp[Total[z]] f[Exp[z]].", "Text"],
+
+Cell["Line identifications", "Subsection"],
+
+Cell["Inside each forest node the kernel needs, for every electron line i, the coefficients cp_i, cpp_i of the external momenta in its momentum after the loop integration, and the contraction weights w_ij. These depend on a line only through its momentum routing. Lines routed alike share them, lines with the same loop routing share w, and lines whose routings differ only by an external momentum have cp_i = cp_r + const (at the external vertex cp_b = cp_a - 1). The generator writes each node in these shared symbols before FORM does the Dirac algebra, so the full g2_00 node computes cp0, cp2, cp3 and four w's instead of cp0..cp3 and six w's. The values are unchanged.", "Text"],
+
+Cell["General terms (symbolic k and h)", "Subsection"],
+
+Cell["g2_02 is the smallest kernel (one forest block, no subtraction). The expressions are large: Short shows their shape, LeafCount their size.", "Text"],
+
+Cell["termAll = sincTerm[\"All\", \"g2_02\", {k0, k1, k2, k3, k4, k5}, h];
+termDelta = sincTerm[\"Delta\", \"g2_02\", {k0, k1, k2, k3, k5}, h];
+termDeltaGL = sincTerm[\"DeltaGL\", \"g2_02\", {kSigma, k0, k3, k5}, h];
+LeafCount /@ {termAll, termDelta, termDeltaGL}", "Input"],
+
+Cell["Short[termDelta, 6]", "Input"],
+
+Cell["The same as functions of the node, for use elsewhere, for any graph g:", "Text"],
+
+Cell["generalTerm[form_String, g_String] := Function[{k, h}, sincTerm[form, g, k, h]];
+generalTerm[\"Delta\", \"g2_03\"][{1, 0, -2, 3, 0}, 1.]", "Input"],
+
+Cell["The integrands themselves, in the summed variables s (the lattice puts s = Exp[h k]):", "Text"],
+
+Cell["{fAll[\"g2_02\"][{0.3, 1.2, 0.7, 2.1, 1.3, 0.5}],
+ fDelta[\"g2_02\"][{0.3, 1.2, 0.7, 2.1, 0.5}],
+ fDeltaGL[\"g2_02\"][{0.9, 0.3, 2.1, 0.5}],
+ fDeltaGL[\"g2_02\", 3][{0.9, 0.3, 2.1, 0.5}]}  (* 3-point Gauss-Legendre gives the same as the one-point rule *)", "Input"],
+
+Cell["Checks, point by point", "Section"],
+
+Cell["Against the C code", "Subsection"],
+
+Cell["Terms of the DeltaGL sum at h = 1 on the plain grid, nodes 0 and {1, -1, 2, 0} (first D entries), as printed by the C code:", "Text"],
+
+Cell["cTerms = {{-6.9509458935950418*^-4, -4.4643105326472302*^-5}, {-8.5039381377550963*^-3, 1.952564920725785*^-4},
+   {4.8828125*^-4, 3.0602558295938928*^-5}, {7.5041454081632673*^-3, 7.3131543592678894*^-3},
+   {1.1249999999999997*^-3, 1.8153319074374148*^-6}};
+Table[With[{d = dim[\"DeltaGL\", graphs[[i]]]},
+   {graphs[[i]], sincTerm[\"DeltaGL\", graphs[[i]], ConstantArray[0, d], 1.]/cTerms[[i, 1]] - 1,
+    sincTerm[\"DeltaGL\", graphs[[i]], Take[{1, -1, 2, 0}, d], 1.]/cTerms[[i, 2]] - 1}], {i, 5}] // TableForm", "Input"],
+
+Cell["All -> Delta: integrating out the scale", "Subsection"],
+
+Cell["Along a ray x = lambda xhat with xhat4 = 1, Int dlambda lambda^5 fAll[lambda xhat] must equal fDelta[xhat]:", "Text"],
+
+Cell["xhat = {0.7, 0.4, 1.9, 0.6, 1, 1.3};
+Table[{g, NIntegrate[l^5 fAll[g][l xhat], {l, 0, Infinity}, PrecisionGoal -> 10, MaxRecursion -> 20]/
+    fDelta[g][Delete[xhat, 5]] - 1}, {g, graphs}] // TableForm", "Input"],
+
+Cell["Delta -> DeltaGL: integrating out the split u", "Subsection"],
+
+Cell["For g2_00 and g2_02 the external-vertex pair is (x0, x1) or (x1, x2); sigma Int du fDelta must equal fDeltaGL, and the one-point rule must agree with 6-point Gauss-Legendre:", "Text"],
+
+Cell["sig = 1.7; rest = {0.6, 2.2, 0.8};
+Table[{g,
+   NIntegrate[sig fDelta[g][Delete[splitArgs[g][sig, u, rest][[2]], 5]], {u, 0, 1}, PrecisionGoal -> 12]/fDeltaGL[g][Prepend[rest, sig]] - 1,
+   fDeltaGL[g][Prepend[rest, sig]]/fDeltaGL[g, 6][Prepend[rest, sig]] - 1}, {g, {\"g2_00\", \"g2_02\"}}] // TableForm", "Input"],
+
+Cell["g2_03: the pair at the external vertex is (x1, x2), and the segments x0 (1-2) and x3 (4-5) carry the same loop momentum on either side of it, so they enter only through t = x0 + x3 and are summed as one variable (x0 = x3 = t/2, Jacobian t). Moving weight between x0 and x3 leaves fDelta unchanged, and sigma t Int du Int dv fDelta[{v t, sigma u, sigma (1 - u), (1 - v) t, s5}] is fDeltaGL:", "Text"],
+
+Cell["{fDelta[\"g2_03\"][{0.1, 0.51, 1.19, 0.5, 0.8}], fDelta[\"g2_03\"][{0.4, 0.51, 1.19, 0.2, 0.8}]}
+sig = 1.7; t = 0.6; s5 = 0.8;
+{NIntegrate[sig t fDelta[\"g2_03\"][{v t, sig u, sig (1 - u), (1 - v) t, s5}], {u, 0, 1}, {v, 0, 1}, PrecisionGoal -> 10],
+ fDeltaGL[\"g2_03\"][{sig, t, s5}]}", "Input"],
+
+Cell["g2_01: the segments x1 and x3 either side of the self-energy enter only through x1 + x3, which is what lets the DeltaGL form drop a further sum (Int dx1 dx3 F(x1 + x3) = Int dt t F(t)). Moving weight between x1 and x3 leaves fDelta unchanged:", "Text"],
+
+Cell["{fDelta[\"g2_01\"][{0.7, 0.3, 1.1, 0.9, 0.5}], fDelta[\"g2_01\"][{0.7, 0.6, 1.1, 0.6, 0.5}], fDelta[\"g2_01\"][{0.7, 1.1, 1.1, 0.1, 0.5}]}", "Input"],
+
+Cell["sig = 1.7; rest = {0.6, 0.8};
+{NIntegrate[sig (sig (1 - u)) fDelta[\"g2_01\"][{sig u, v sig (1 - u), rest[[1]], (1 - v) sig (1 - u), rest[[2]]}], {u, 0, 1}, {v, 0, 1}, PrecisionGoal -> 10],
+ fDeltaGL[\"g2_01\"][Prepend[rest, sig]]}", "Input"],
+
+Cell["v2_00: the kernel depends on the two photon pieces only through x2 + x4, so the Cheng-Wu slice can be x4 = 1 (\"Delta\") or x2 + x4 = 1 (\"DeltaGL\"); moving weight between them leaves it unchanged, and the one-point rule agrees with 6-point Gauss-Legendre:", "Text"],
+
+Cell["{ptv200[0.7, 0.4, 0.3, 1.1, 0.7, 0.6, projPW], ptv200[0.7, 0.4, 0.9, 1.1, 0.1, 0.6, projPW]}
+fDeltaGL[\"v2_00\"][{1.7, 0.6, 0.8}]/fDeltaGL[\"v2_00\", 6][{1.7, 0.6, 0.8}] - 1", "Input"],
+
+Cell["Precision", "Subsection"],
+
+Cell["Near the edges of the region the subtracted integrand cancels strongly and machine numbers lose digits (sincqed recomputes such points in quad precision). Give h with 30 digits there; the whole term is then carried at that precision:", "Text"],
+
+Cell["{sincTerm[\"Delta\", \"g2_01\", {6, 1, -5, -5, -2}, 1.5], sincTerm[\"Delta\", \"g2_01\", {6, 1, -5, -5, -2}, N[3/2, 30]]}", "Input"],
+
+Cell["Sinc sums", "Section"],
+
+Cell["sincSum[form, g, h, K] adds the full box |k_i| <= K, (2K+1)^D terms. The C code visits only the cells that matter; the box sum is the same sum without pruning. Each term costs about a millisecond here, so keep D K small: the 3-d and 4-d DeltaGL sums are practical, the 5-d and 6-d ones need small K or the C code. The Sinc error falls like Exp[-c/h] once the box is wide enough.", "Text"],
+
+Cell["AbsoluteTiming[sincSum[\"DeltaGL\", \"g2_02\", 1.5, 3]]", "Input"],
+
+Cell["AbsoluteTiming[sincSum[\"Delta\", \"g2_02\", 1.5, 3]]", "Input"],
+
+Cell["AbsoluteTiming[sincSum[\"All\", \"g2_02\", 1.5, 3]]", "Input"],
+
+Cell["The documented DeltaGL box sums at h = 1.5, K = 12 (25^4 terms for g2_00 and g2_02, minutes; 25^3 for the others, seconds): g2_00 -0.0322900999, g2_01 -0.2951178981, g2_02 -0.4672459333, g2_03 +0.7771995131, v2_00 +0.0159222970. (g2_03 was +0.7774321818 before its two equal-momentum segments were merged: the integral is the same, the h = 1.5 Sinc sum of the new parametrisation is not.)", "Text"],
+
+Cell["box = Table[g -> sincSum[\"DeltaGL\", g, 1.5, 12], {g, graphs}]", "Input"],
+
+Cell["{Total[mirror[#] (# /. box) & /@ graphs], Total[exact /@ graphs]}", "Input"],
+
+Cell["With several kernels: the same sum in parallel.", "Text"],
+
+Cell["parallelSincSum[form_String, g_String, h_, K_Integer] := Module[{d = dim[form, g]},
+   DistributeDefinitions[\"Global`\"];
+   ParallelSum[h^d Exp[Total[h k]] integrand[form, g][Exp[h k]], {k, Tuples[Range[-K, K], d]}, Method -> \"CoarsestGrained\"]];
+(* parallelSincSum[\"DeltaGL\", \"g2_03\", 1.0, 20] *)", "Input"],
+
+Cell["Reference box sums (h = 1)", "Subsection"],
+
+Cell["Full-box sums |k_i| <= K at h = 1, before the mirror weight w, DeltaGL with the C kernels themselves (check/boxsum_gl.c: ./boxsum_gl 1.0 35), Delta and All with a numpy transcription of the kernels before the line identifications, which are equal to them in exact arithmetic (check/boxsum.py: python3 boxsum.py g2_02 delta 1.0 22; v2_00: python3 v2_boxsum.py Delta 1.0 22). \"diff\" is against exact/w, the closed forms.
+
+graph   DeltaGL (K = 35)         Delta (K = 22)           All (K = 16)             exact/w
+g2_00   -0.0320112495 (-7.8e-7)  -0.0320090234 (+1.4e-6)  -0.0320230193 (-1.3e-5)  -0.0320104707
+g2_01   -0.2949885012 (+5.1e-7)  -0.2949882902 (+7.2e-7)  -0.2949727496 (+1.6e-5)  -0.2949890111
+g2_02   -0.4676448933 (+5.5e-7)  -0.4675667889 (+7.9e-5)  -0.4641829903 (+3.5e-3)  -0.4676454461
+g2_03   +0.7774775357 (-4.9e-7)  +0.7774339313 (-4.4e-5)  +0.7738393846 (-3.6e-3)  +0.7774780223
+v2_00   +0.0156888288 (+1.4e-6)  +0.0156883143 (+8.9e-7)  +0.0156865071 (-9.1e-7)  +0.0156874219
+
+The DeltaGL column agrees with the exact values to about 1e-6, the h = 1 Sinc error. The Delta and All columns are limited by the box, not by h: g2_02 and g2_03 have slowly decaying tails, and at the same box |z| <= 16 the DeltaGL sum of g2_02 is also off by 1.1e-3. g2_02 at h = 1.5, K = 16 (|z| <= 24): DeltaGL +6.8e-5, Delta -1.7e-4, All +9.0e-4. Summing all six variables costs a sixth dimension and a wider box; that is what the delta and GL reductions buy.
+", "Text"]
+}, WindowSize -> {1000, 800}, StyleDefinitions -> "Default.nb"]

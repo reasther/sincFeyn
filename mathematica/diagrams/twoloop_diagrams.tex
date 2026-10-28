@@ -1,0 +1,63 @@
+% Two-loop g-2 graphs evaluated by sincqed / TwoLoopSinc.wl, with the Schwinger-parameter labels x0..x5 of the kernels.
+% x0..x3: electron segments 1-2, 2-3, 3-4, 4-5;  x4: first photon of the Volkov string (Cheng-Wu fixes x4 = 1);
+% x5: second photon;  q: external photon, at the vertex given by the first number of the Volkov string.
+% (Labelling checked against the Symanzik polynomial U of each generated kernel.)
+% v2_00 (one-loop vertex + Pi2): x0, x1 electron lines, x2 and x4 the photon either side of the electron loop
+% (Cheng-Wu fixes x4 = 1 in "Delta", x2 + x4 = 1 in "DeltaGL"), x3 and x5 the loop lines.
+% pdflatex twoloop_diagrams.tex  ->  one diagram per page (pages 1-5), all five on page 6.
+\documentclass{article}
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathmorphing,decorations.markings}
+\tikzset{
+  photon/.style={decorate,decoration={snake,amplitude=0.6mm,segment length=2mm,pre length=0.3mm,post length=0.3mm}},
+  fermion/.style={thick,postaction={decorate},decoration={markings,mark=at position 0.55 with {\arrow{stealth}}}},
+  vtx/.style={circle,fill,inner sep=1pt},
+  lab/.style={font=\small},
+  num/.style={font=\scriptsize,text=gray},
+}
+\hoffset=-1in \voffset=-1in \parindent=0pt \pagestyle{empty}
+\newsavebox\diag
+\newcommand\onepage[1]{\sbox\diag{#1}\pdfpagewidth=\wd\diag \pdfpageheight=\dimexpr\ht\diag+\dp\diag\relax
+  \shipout\hbox{\raise\dp\diag\box\diag}}
+% \twoloop{ext vertex}{photon x4: a}{b}{photon x5: a}{b}{caption}
+\newcommand\twoloop[6]{%
+\begin{tikzpicture}[scale=1.1]
+  \foreach \i in {0,...,5} \draw[fermion] (\i,0) -- (\i+1,0);
+  \foreach \i/\l in {1/x_0,2/x_1,3/x_2,4/x_3} \node[lab,below] at (\i+0.5,0) {$\l$};
+  \pgfmathsetmacro\ha{0.55*abs(#3-#2)+0.25}
+  \pgfmathsetmacro\hb{0.55*abs(#5-#4)+0.25}
+  \draw[photon] (#2,0) .. controls (#2,\ha) and (#3,\ha) .. (#3,0);
+  \draw[photon] (#4,0) .. controls (#4,\hb) and (#5,\hb) .. (#5,0);
+  \path (#2,0) .. controls (#2,\ha) and (#3,\ha) .. (#3,0) node[lab,pos=0.2,above left=1pt] {$x_4$};
+  \path (#4,0) .. controls (#4,\hb) and (#5,\hb) .. (#5,0) node[lab,pos=0.8,above right=1pt] {$x_5$};
+  \draw[photon] (#1,0) -- (#1,-1.2) node[lab,below] {$q$};
+  \foreach \i in {1,...,5} {\node[vtx] at (\i,0) {}; \node[num,above left=-1pt] at (\i,0) {\i};}
+  \node[below,font=\small] at (3,-1.75) {#6};
+\end{tikzpicture}}
+% \vpgraph{caption}: one-loop vertex with a Pi2 insertion on the photon (v2_00)
+\newcommand\vpgraph[1]{%
+\begin{tikzpicture}[scale=1.1]
+  \foreach \i in {0,...,3} \draw[fermion] (\i,0) -- (\i+1,0);
+  \foreach \i/\l in {1/x_0,2/x_1} \node[lab,below] at (\i+0.5,0) {$\l$};
+  \draw[photon] (1,0) .. controls (1,0.9) .. (1.6,1.25);
+  \draw[photon] (2.4,1.25) .. controls (3,0.9) .. (3,0);
+  \node[lab,left] at (0.95,0.8) {$x_2$};
+  \node[lab,right] at (3.05,0.8) {$x_4$};
+  \draw[fermion] (2.4,1.25) arc (0:180:0.4);
+  \draw[fermion] (1.6,1.25) arc (180:360:0.4);
+  \node[lab,above] at (2,1.65) {$x_3$};
+  \node[lab,below] at (2,0.82) {$x_5$};
+  \node[vtx] at (1.6,1.25) {}; \node[vtx] at (2.4,1.25) {};
+  \draw[photon] (2,0) -- (2,-1.2) node[lab,below] {$q$};
+  \foreach \i in {1,...,3} {\node[vtx] at (\i,0) {}; \node[num,above left=-1pt] at (\i,0) {\i};}
+  \node[below,font=\small] at (2,-1.75) {#1};
+\end{tikzpicture}}
+\begin{document}
+\newcommand\A{\twoloop{2}{1}{4}{3}{5}{\texttt{g2\_00}\quad 2; 1-4, 3-5\quad $w=2$}}
+\newcommand\B{\twoloop{2}{1}{5}{3}{4}{\texttt{g2\_01}\quad 2; 1-5, 3-4\quad $w=2$}}
+\newcommand\C{\twoloop{3}{1}{4}{2}{5}{\texttt{g2\_02}\quad 3; 1-4, 2-5\quad $w=1$}}
+\newcommand\D{\twoloop{3}{1}{5}{2}{4}{\texttt{g2\_03}\quad 3; 1-5, 2-4\quad $w=1$}}
+\newcommand\E{\vpgraph{\texttt{v2\_00}\quad 2; 1-3 $+\,\Pi_2$\quad $w=1$}}
+\onepage{\A}\onepage{\B}\onepage{\C}\onepage{\D}\onepage{\E}
+\onepage{\begin{tabular}{@{}cc@{}}\A & \B\\[4mm] \C & \D\\[4mm] \multicolumn{2}{c}{\E}\end{tabular}}
+\end{document}
