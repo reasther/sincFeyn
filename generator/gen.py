@@ -92,6 +92,7 @@ def main():
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     if not a.table_only: use_form(a.L)
+    build.NW = max(build.NW, a.L)   # Wick counts reach L-1 (4 at five loops); 4 keeps L <= 4 byte-identical
     allreps = gr.enumerate_graphs(a.L)
     names = ['g%d_%02d' % (a.L, i) for i in range(len(allreps))]
     if a.table_only:

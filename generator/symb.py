@@ -1,9 +1,13 @@
 import sympy as sp
+from sympy.polys.matrices import DomainMatrix
 def symbolic(A,B,m2):
     n=len(A); L=len(A[0])
     s=sp.symbols('s0:%d'%n, positive=True)
     M=sp.Matrix(L,L,lambda l,k: sum(s[i]*A[i][l]*A[i][k] for i in range(n)))
-    U=sp.expand(M.det()); adj=M.adjugate()
+    # det and adjugate over ZZ[s]: Matrix.det()/adjugate() (Bareiss with dotprodsimp) stall at five loops
+    R=sp.ZZ[s]; dM=DomainMatrix.from_list_sympy(L,L,M.tolist()).convert_to(R)
+    adjD,detD=dM.adj_det()
+    U=R.to_sympy(detD); adj=adjD.to_Matrix()
     J=[[sum(s[i]*A[i][l]*B[i][c] for i in range(n)) for c in range(2)] for l in range(L)]
     Js=[J[l][0]+J[l][1] for l in range(L)]
     F=sp.expand(sum(Js[l]*adj[l,k]*Js[k] for l in range(L) for k in range(L)) - U*sum(s[i]*((B[i][0]+B[i][1])**2-m2[i]) for i in range(n)))

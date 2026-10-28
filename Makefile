@@ -44,10 +44,10 @@ OMP    ?= -fopenmp
 # QOPT= (empty) compiles the whole file at OPT/OPT_K4.
 QOPT   ?= O1
 DD     ?= 1
-ALLCLASSES := g2 g3 v3 g4 v4 w4 pi6 lbl4
+ALLCLASSES := g2 g3 v3 g4 v4 w4 pi6 lbl4 g5
 # classes whose kernels are not in git: kept in $(KEXT)/<class>/ (kernels/<class>/, their place before
 # 2026-10-25, is still read when $(KEXT)/<class>/ is empty)
-EXTCLASSES := g4 lbl4
+EXTCLASSES := g4 lbl4 g5
 KEXT ?= kernels-ext
 kdir = $(if $(filter $(1),$(EXTCLASSES)),$(if $(wildcard $(KEXT)/$(1)/*.c),$(KEXT),$(if $(wildcard kernels/$(1)/*.c),kernels,$(KEXT))),kernels)/$(1)
 $(foreach c,$(EXTCLASSES),$(if $(wildcard $(KEXT)/$(c)/*.c),,$(if $(wildcard kernels/$(c)/*.c),$(warning *** using kernels/$(c): move it to $(KEXT)/$(c) (mv kernels/$(c) $(KEXT)/)))))
