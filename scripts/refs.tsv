@@ -1,0 +1,36 @@
+# Reference values per graph (ours include the mirror graph, as Volkov's do), used by convergence.sh
+# when the executable has no built-in reference.  graph  value  uncertainty  source
+# MC values: Volkov, arXiv:1807.05281 Tables V-VI (1 sigma; one K80 GPU, 21.6 h for two loops, 5.3 days
+# for three; transcribed from the paper's text, the 28 three-loop rows sum to its total 0.90485(10)).
+# Exact values: the single-graph gauge-invariant sets of Volkov arXiv:1507.06435 Table 4 (papers cited there).
+g2_00	-0.064020941344682816	0	exact -55/24+pi^2/18+pi^2ln2/3-z3/2 (PSLQ)
+g2_01	-0.58997802228274215	0	exact -1/24-pi^2/18 (PSLQ)
+g3_00	-1.679616	2.0e-5	Volkov2018 MC
+g3_01	0.832792	2.0e-5	Volkov2018 MC
+g3_02	0.214875	1.4e-5	Volkov2018 MC
+g3_03	-0.028928	1.1e-5	Volkov2018 MC
+g3_04	-0.097163	2.6e-5	Volkov2018 MC
+g3_05	0.144471	1.2e-5	Volkov2018 MC
+g3_06	0.804106	1.7e-5	Volkov2018 MC
+g3_07	-2.123267	1.6e-5	Volkov2018 MC
+g3_08	2.524749	1.8e-5	Volkov2018 MC
+g3_09	-0.058729	1.1e-5	Volkov2018 MC
+g3_10	5.042278	2.7e-5	Volkov2018 MC
+g3_11	-3.500634	2.5e-5	Volkov2018 MC
+g3_12	-1.757936342	0	exact (Laporta-Remiddi 1996)
+g3_13	0.140129	1.4e-5	Volkov2018 MC
+g3_14	-3.257290	2.7e-5	Volkov2018 MC
+g3_15	-0.334695103723	0	exact (Laporta 1995)
+g3_16	0.315388	2.2e-5	Volkov2018 MC
+g3_17	4.513076	2.7e-5	Volkov2018 MC
+g3_18	0.611112	2.1e-5	Volkov2018 MC
+g3_19	-2.269647	1.6e-5	Volkov2018 MC
+g3_20	-2.908437	2.2e-5	Volkov2018 MC
+g3_21	6.533883	3.1e-5	Volkov2018 MC
+g3_22	-0.026799490	0	exact (Laporta-Remiddi 1996)
+g3_23	1.861907872591	0	exact (Laporta 1995)
+g3_24	-0.945906	1.1e-5	Volkov2018 MC
+g3_25	-3.204367	2.0e-5	Volkov2018 MC
+g3_26	-2.230794	1.9e-5	Volkov2018 MC
+g3_27	1.79027778	0	exact (Barbieri et al. 1978)
+v3_00	0.00255852493651735	0	exact: -943/324-4pi^2/135+8/3 zeta3 (Solovtsova et al. arXiv:2210.11071 eq. 52)
