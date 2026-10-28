@@ -20,4 +20,6 @@ conv3/
 conv3v/
 # LaTeX intermediates
 
-kernels-ext/
+# four-loop g4 and lbl4 kernels (release archives): only the README is tracked
+kernels-ext/*
+!kernels-ext/README.md
