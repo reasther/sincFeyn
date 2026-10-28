@@ -1,0 +1,23 @@
+# build products
+build/
+bin/
+*.o
+*.a
+# generator caches (recomputed on demand)
+generator/*.pkl
+generator/__pycache__/
+__pycache__/
+# large four-loop kernels: distributed as release archives (see docs/REPRODUCE.md)
+kernels/g4/
+kernels/lbl4/
+# run outputs
+sincqed.log
+sincqed_results.txt
+*.ckpt
+conv/
+conv2/
+conv3/
+conv3v/
+# LaTeX intermediates
+
+kernels-ext/
