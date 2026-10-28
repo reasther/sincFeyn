@@ -53,7 +53,7 @@ kdir = $(if $(filter $(1),$(EXTCLASSES)),$(if $(wildcard $(KEXT)/$(1)/*.c),$(KEX
 $(foreach c,$(EXTCLASSES),$(if $(wildcard $(KEXT)/$(c)/*.c),,$(if $(wildcard kernels/$(c)/*.c),$(warning *** using kernels/$(c): move it to $(KEXT)/$(c) (mv kernels/$(c) $(KEXT)/)))))
 # default: the classes of the last build (build/classes), else every class that has kernels
 CLASSES ?= $(or $(strip $(shell cat build/classes 2>/dev/null)),$(foreach c,$(ALLCLASSES),$(if $(wildcard $(call kdir,$(c))/*.c),$(c),)))
-K4CLASSES := g4 v4 w4 pi6 lbl4
+K4CLASSES := g4 v4 w4 pi6 lbl4 g5
 
 # The four-loop g4 kernels (release archive, or generator/regen.sh with FORM installed) are made with
 # FORM.  Warn when a build uses g4 kernels from the Python path (gen.py without FORM): they run 1.5-2x slower.

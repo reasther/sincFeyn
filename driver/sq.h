@@ -10,7 +10,7 @@
 #endif
 #include "common.h"
 
-#define MAXD 12
+#define MAXD 14   /* five-loop graphs reach D = 13; PFLAG needs DIM < MAXD */
 
 /* ---- io.c: log, results file, progress ---- */
 extern FILE *LOGF, *RESF;
