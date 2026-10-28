@@ -32,7 +32,17 @@ make -j2 CLASSES="g2 g5" QOPT=O0
   generator at the same time got the compiler OOM-killed on 16 GB.
 - Do not run two gen.py processes that both compute new Dirac tables: they race on
   `cache_dirac.pkl` (use `--cache-dir`, or one process).
-- All five-loop graphs tried have D = 12 = MAXD (driver/sq.h).
+- D at five loops (from build.classes): 66 integrals at D = 9, 257 at 10, 638 at 11, 1125 at 12 and
+  1127 at 13. MAXD (driver/sq.h) is now 14. The packed 64-bit lattice key is used only for the one
+  dilation at the coarsest level (step 2h). At D = 13 it fits for h >= 2; below that the driver uses
+  the old sort-based dilate, which is cheap at the ~1e5 cells these runs keep.
+- A D = 13 node (g5_1221) is one 8.8 MB function, and gcc needed more than 14 GB to compile it even at
+  -O1. `python3 tools/splitform.py FILE` cuts the FORM blocks into chunk functions of 4000
+  statements. Two kernels then build in 8 minutes with 4.3 GB peak. The values are bit-identical:
+  make test on split g2/g3 kernels, and g5_3086 again gives -0.360975824517. g5 is compiled with
+  OPT_K4 (-O2).
+- Building recipe, after optimize.sh: `python3 tools/splitform.py kernels-ext/g5/*.c`, then
+  `make -j2 CLASSES="g2 g5" QOPT=O0`.
 
 ## The test class
 
@@ -60,6 +70,12 @@ the same subtraction scheme (on-shell U and L, M^2 = m^2) and include the mirror
 | g5_3086 | 2.4 | 1e-7 | -0.370940 | 3.1e8 | 1087 s | 75 MB |
 | g5_3086 | 2.4 | 1e-8 | -0.381621 | 8.6e8 | 2959 s | 73 MB |
 | g5_1078 | 2.4 | 1e-6 | -0.948473 | 2.2e8 | 5797 s | 87 MB |
+| g5_1221 (D = 13) | 2.4 | 1e-6 | -0.610670 | 4.2e8 | ~3 h | 62 MB |
+
+g5_1221 = 3; 1-10, 2-5, 4-7, 6-9, 8-11 is a primitive D = 13 graph (one term, no subdivergences),
+Volkov -0.730246(533). Its eps shadow estimates the pruning loss left at eps = 1e-6 at -0.128,
+which gives -0.739, 1.2% from Volkov. |S_2h - S_h| is only 1.2e-2, so at D = 13 the pruning loss is
+also much larger than the discretisation error.
 
 (The h = 2.0 run was interrupted and resumed from its checkpoint, so its time is approximate.)
 
