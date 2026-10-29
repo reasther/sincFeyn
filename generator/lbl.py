@@ -55,7 +55,7 @@ def generate(out, cache, cachefile, jobs):
     znodes = [LNode(p, zero=True) for p in PERMS] if SUBTRACT else []
     need = [nd for nd in nodes if nd.key() not in cache]
     if need:
-        with mp.Pool(jobs) as pool:
+        with mp.get_context('fork').Pool(jobs) as pool:
             for k, tb, dt in pool.imap_unordered(_tab, need):
                 cache[k] = tb; print('  lbl table %s: %d structures, %.0fs' % (k[:8], len(tb), dt), flush=True)
                 pickle.dump(cache, open(cachefile + '.tmp', 'wb')); os.replace(cachefile + '.tmp', cachefile)

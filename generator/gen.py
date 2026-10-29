@@ -124,7 +124,7 @@ def main():
     if need:
         jobs = sorted(need.values(), key=lambda j: -len(j[1]))
         last = time.time()
-        with mp.Pool(a.jobs) as pool:
+        with mp.get_context('fork').Pool(a.jobs) as pool:     # fork: workers inherit dirac.USE_FORM (macOS defaults to spawn)
             for k, tb, dt in pool.imap_unordered(_tab, jobs):
                 cache[k] = tb; print('  table %s: %d structures, %.0fs' % (k[:8], len(tb), dt), flush=True)
                 if a.cache_dir: cache.drop(); continue
