@@ -17,8 +17,8 @@
 # Settings: JOBS [nproc] generator processes; MAKEJ [1] compile jobs (a split five-loop kernel takes
 # ~4 GB and ~4 minutes to compile); THREADS [all] for the run; OUT [runs5] for results and logs;
 # KEXT [kernels-ext]; CLASSES ["g2 g5"]; VOLKOV_SUPP [unset].
-# Needs python3 with numpy and sympy, and FORM (the generator falls back to numerical Dirac tables
-# without it, which at five loops takes hours).  Run from the top of the tree.
+# Needs python3 with numpy and sympy, and FORM on the PATH or in $FORM (the script stops without it: the
+# Python Dirac fallback takes hours per five-loop graph).  Run from the top of the tree.
 # Cost on 4 cores (h = 2.4): D = 12 graphs 5-100 min at eps = 1e-6, about 10x more at 1e-8; the D = 13
 # graph tried took 3 h at 1e-6.  Memory during the run stays below 100 MB.
 set -e
@@ -35,6 +35,7 @@ echo "== $NAME  '$VOLK'  D=$D  w=$(echo "$info" | cut -f4)  terms=$(echo "$info"
 mkdir -p "$KEXT/g5" "$OUT"
 K="$KEXT/g5/$NAME.c"
 if [ ! -s "$K" ]; then
+    command -v "${FORM:-form}" > /dev/null || { echo "FORM executable '${FORM:-form}' not found (set FORM=/path/to/form): without it the five-loop Dirac tables take many hours"; exit 1; }
     T=$(mktemp -d "${TMPDIR:-/tmp}/run5.XXXXXX"); mkdir -p "$T/g5"
     echo "-- generating $NAME (FORM O1)"
     ( cd generator && GEN_FORM_LEVEL=O1 PYTHONHASHSEED=0 python3 gen.py 5 "$T/g5" --jobs "$JOBS" --only "$VOLK" ) | grep -v "table_5.h" || true

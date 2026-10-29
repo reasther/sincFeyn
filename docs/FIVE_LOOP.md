@@ -45,6 +45,9 @@ make -j2 CLASSES="g2 g5" QOPT=O0
 
 - FORM `O3` (the default) did not finish the 12-13 MB node expressions in 30+ minutes; `O1`
   takes about 3 minutes per graph. The kernels are 12-22 MB of C.
+- New Dirac tables come first and are cached (`cache_dirac.pkl`). With FORM the large ones (~8e5
+  structures) took 4-6 minutes each here; without FORM the Python fallback is several hundred times
+  slower, so run5.sh refuses to generate unless FORM is found.
 - Compiling two kernels takes about 23 minutes and several GB per compile job. Running the
   generator at the same time got the compiler OOM-killed on 16 GB.
 - Do not run two gen.py processes that both compute new Dirac tables: they race on
