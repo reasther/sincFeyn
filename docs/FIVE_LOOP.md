@@ -12,8 +12,8 @@ VOLKOV_SUPP=/path/to/volkov_supplement sh scripts/run5.sh "6; 1-8, 2-9, 3-10, 4-
 `scripts/run5.sh` takes one graph (a Volkov string in either orientation, his supplement's
 `6;1*8;...` form, or a kernel name such as `g5_3086`) and does everything below: it generates the
 kernel, vectorises, optimises and splits it, builds `bin/sincqed` with every kernel in
-`kernels-ext/g5`, runs at the given h and eps, and prints the value, the value plus the eps-shadow
-pruning estimate, and the difference from Volkov's 2019 value. Steps whose output exists are skipped,
+`kernels-ext/g5`, runs at the given h and eps, and prints the value, the driver's prune estimate (with the eps-shadow
+estimate alongside), and the difference from Volkov's 2019 value. Steps whose output exists are skipped,
 so a second h or eps for the same graph goes straight to the run. `python3 scripts/g5info.py GRAPH
 [SUPPDIR]` prints the kernel name, D, mirror weight, number of subtraction terms and Volkov's value
 without running anything. VOLKOV_SUPP is the directory of Volkov's `class_*_aver.txt` files (the
@@ -96,6 +96,14 @@ g5_1221 = 3; 1-10, 2-5, 4-7, 6-9, 8-11 is a primitive D = 13 graph (one term, no
 Volkov -0.730246(533). Its eps shadow estimates the pruning loss left at eps = 1e-6 at -0.128,
 which gives -0.739, 1.2% from Volkov. |S_2h - S_h| is only 1.2e-2, so at D = 13 the pruning loss is
 also much larger than the discretisation error.
+
+An independent build on a 24-thread Mac (Homebrew gcc, FORM built from source) gave g5_3086 at h = 2.4,
+eps = 1e-7 as -0.370940243117 with the same 306728281 evaluations, identical to the Linux run, in 321 s.
+
+The eps shadow does not extrapolate the pruning loss at five loops: at eps = 1e-7 it predicts -9.5e-4
+left, but the next decade alone moves the value by -1.07e-2 (the per-decade moves are -0.0099 and
+-0.0107, not falling geometrically). The prune column is the better guide (2.6e-2 at 1e-7, against
+1.6e-2 actually left), and run5.sh reports the difference from Volkov in units of it.
 
 (The h = 2.0 run was interrupted and resumed from its checkpoint, so its time is approximate.)
 

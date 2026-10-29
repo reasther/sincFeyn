@@ -11,8 +11,8 @@
 #      which gcc needs more than 14 GB per five-loop kernel
 #   3. build bin/sincqed with $CLASSES (every kernel in $KEXT/g5 is linked)
 #   4. run at step H [2.4] and threshold EPS [1e-7], N = 2*ceil(WINDOW/h)+1 with WINDOW [48]
-#   5. print the value, the value plus the eps-shadow estimate of the pruning loss, and Volkov's
-#      2019 value when VOLKOV_SUPP points at his class_*_aver.txt files.
+#   5. print the value, the driver's prune estimate (and its eps-shadow estimate) and the difference from
+#      Volkov's 2019 value when VOLKOV_SUPP points at his class_*_aver.txt files.
 #
 # Settings: JOBS [nproc] generator processes; MAKEJ [1] compile jobs (a split five-loop kernel takes
 # ~4 GB and ~4 minutes to compile); THREADS [all] for the run; OUT [runs5] for results and logs;
@@ -56,8 +56,12 @@ echo "-- running $NAME at h=$H N=$N eps=$EPS (results $OUT/$TAG.txt)"
 [ -n "$THREADS" ] && export OMP_NUM_THREADS=$THREADS
 ( cd "$OUT" && SINCQED_RESULTS="$TAG.txt" SINCQED_LOG="$TAG.log" "$ROOT/bin/sincqed" run "$H" "$N" "$EPS" "$NAME" ) | grep "^$NAME \|resuming" || true
 V=$(awk -v g="$NAME" '$1 == g { for(i = 2; i <= NF; i++) if($i ~ /^[-+][0-9]\.[0-9]+e[-+][0-9]+$/ && length($i) > 18){ v = $i; break } } END{ print v }' "$OUT/$TAG.txt")
-P=$(sed -n "s/.*$NAME eps shadow.*pruning loss left at eps ~ \([-+0-9.e]*\).*/\1/p" "$OUT/$TAG.log" | tail -1)
-awk -v v="$V" -v p="${P:-0}" -v r="$REF" -v su="$SU" -v sd="$SD" -v g="$NAME" -v h="$H" -v e="$EPS" 'BEGIN{
-    printf "%s h=%s eps=%s  value %+.6f  value+pruning-estimate %+.6f", g, h, e, v, v + p
-    if(r != "-") printf "  Volkov %+.6f(+%s/-%s)  diff %+.2e (%.2f%%), corrected %+.2e (%.2f%%)", r, su, sd, v - r, 100*(v - r)/r, v + p - r, 100*(v + p - r)/r
+# pruning: the driver's prune estimate (weight dropped below eps) and the eps-shadow extrapolation.  At five
+# loops the shadow assumes a geometric fall-off in eps that the g5_3086 eps ladder does not show (it
+# understated the loss 10x at eps = 1e-7), so the prune estimate is the one to compare with.
+P=$(sed -n "s/^$NAME .* prune \([-+0-9.e]*\) .*/\1/p" "$OUT/$TAG.log" | tail -1)
+SH=$(sed -n "s/.*$NAME eps shadow.*pruning loss left at eps ~ \([-+0-9.e]*\).*/\1/p" "$OUT/$TAG.log" | tail -1)
+awk -v v="$V" -v p="${P:-0}" -v sh="${SH:--}" -v r="$REF" -v su="$SU" -v sd="$SD" -v g="$NAME" -v h="$H" -v e="$EPS" 'BEGIN{
+    printf "%s h=%s eps=%s  value %+.6f  prune estimate %.1e  (eps-shadow estimate %s)", g, h, e, v, p, sh
+    if(r != "-") printf "  Volkov %+.6f(+%s/-%s)  diff %+.2e (%.2f%%) = %.2f x prune estimate", r, su, sd, v - r, 100*(v - r)/r, (p > 0 ? (v - r)/p : 0)
     printf "\n" }' | tee -a "$OUT/summary.txt"
