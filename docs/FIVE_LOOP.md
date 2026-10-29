@@ -89,6 +89,8 @@ the same subtraction scheme (on-shell U and L, M^2 = m^2) and include the mirror
 | g5_3086 | 2.0 | 1e-6 | -0.349492 | 2.7e8 | ~1650 s | 52 MB |
 | g5_3086 | 2.4 | 1e-7 | -0.370940 | 3.1e8 | 1087 s | 75 MB |
 | g5_3086 | 2.4 | 1e-8 | -0.381621 | 8.6e8 | 2959 s | 73 MB |
+| g5_3086 | 2.4 | 1e-9 | -0.383597 | | (Mac, 24 thr) | |
+| g5_372 | 2.4 | 1e-7 | +0.100746 | | (Mac, 24 thr) | |
 | g5_1078 | 2.4 | 1e-6 | -0.948473 | 2.2e8 | 5797 s | 87 MB |
 | g5_1221 (D = 13) | 2.4 | 1e-6 | -0.610670 | 4.2e8 | ~3 h | 62 MB |
 
@@ -96,6 +98,12 @@ g5_1221 = 3; 1-10, 2-5, 4-7, 6-9, 8-11 is a primitive D = 13 graph (one term, no
 Volkov -0.730246(533). Its eps shadow estimates the pruning loss left at eps = 1e-6 at -0.128,
 which gives -0.739, 1.2% from Volkov. |S_2h - S_h| is only 1.2e-2, so at D = 13 the pruning loss is
 also much larger than the discretisation error.
+
+The g5_3086 eps ladder at h = 2.4 is -0.370940, -0.381621, -0.383597 for eps = 1e-7, 1e-8, 1e-9:
+per-decade changes -0.0107 and -0.0020, so the pruning loss is now falling (ratio 5.4) and extrapolates
+to about -0.3840. The remaining 0.8% to Volkov's -0.3872(6) is presumably the h = 2.4 discretisation;
+h = 2.2 and 2.0 at eps = 1e-9 are the next runs. g5_372 at eps = 1e-7 (+0.1007 against +0.1482) is a
+cancelling 4-term graph and is far from converged in eps.
 
 An independent build on a 24-thread Mac (Homebrew gcc, FORM built from source) gave g5_3086 at h = 2.4,
 eps = 1e-7 as -0.370940243117 with the same 306728281 evaluations, identical to the Linux run, in 321 s.
