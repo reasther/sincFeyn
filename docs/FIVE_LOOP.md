@@ -3,6 +3,23 @@
 Notes from a first attempt at tenth-order (five-loop) graphs without lepton loops, run on a 4-core,
 16 GB machine. Nothing here is production quality yet.
 
+## Quick start
+
+```
+VOLKOV_SUPP=/path/to/volkov_supplement sh scripts/run5.sh "6; 1-8, 2-9, 3-10, 4-11, 5-7" 2.4 1e-7
+```
+
+`scripts/run5.sh` takes one graph (a Volkov string in either orientation, his supplement's
+`6;1*8;...` form, or a kernel name such as `g5_3086`) and does everything below: it generates the
+kernel, vectorises, optimises and splits it, builds `bin/sincqed` with every kernel in
+`kernels-ext/g5`, runs at the given h and eps, and prints the value, the value plus the eps-shadow
+pruning estimate, and the difference from Volkov's 2019 value. Steps whose output exists are skipped,
+so a second h or eps for the same graph goes straight to the run. `python3 scripts/g5info.py GRAPH
+[SUPPDIR]` prints the kernel name, D, mirror weight, number of subtraction terms and Volkov's value
+without running anything. VOLKOV_SUPP is the directory of Volkov's `class_*_aver.txt` files (the
+supplement of PRD 100, 096004); the tables are not in this repository. Settings are listed at the
+top of the script (JOBS, MAKEJ, THREADS, OUT, WINDOW).
+
 ## Generator changes
 
 - `generator/symb.py`: the determinant and adjugate of the loop matrix are now computed over the
