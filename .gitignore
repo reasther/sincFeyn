@@ -23,3 +23,6 @@ conv3v/
 kernels-ext/
 # run5.sh results
 runs5/
+# four-loop g4 and lbl4 kernels (release archives): only the README is tracked
+kernels-ext/*
+!kernels-ext/README.md
