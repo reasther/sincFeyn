@@ -10,7 +10,9 @@
 #endif
 #include "common.h"
 
-#define MAXD 14   /* five-loop graphs reach D = 13; PFLAG needs DIM < MAXD */
+#ifndef MAXD
+#define MAXD 12   /* the Makefile sets 14 when g5 is built: five-loop graphs reach D = 13, and PFLAG needs DIM < MAXD */
+#endif
 
 /* ---- io.c: log, results file, progress ---- */
 extern FILE *LOGF, *RESF;

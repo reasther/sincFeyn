@@ -21,3 +21,5 @@ conv3v/
 # LaTeX intermediates
 
 kernels-ext/
+# run5.sh results
+runs5/

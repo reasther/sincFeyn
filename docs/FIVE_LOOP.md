@@ -50,7 +50,7 @@ make -j2 CLASSES="g2 g5" QOPT=O0
 - Do not run two gen.py processes that both compute new Dirac tables: they race on
   `cache_dirac.pkl` (use `--cache-dir`, or one process).
 - D at five loops (from build.classes): 66 integrals at D = 9, 257 at 10, 638 at 11, 1125 at 12 and
-  1127 at 13. MAXD (driver/sq.h) is now 14. The packed 64-bit lattice key is used only for the one
+  1127 at 13. MAXD (driver/sq.h) stays 12 unless g5 is in CLASSES, when the Makefile sets 14. The packed 64-bit lattice key is used only for the one
   dilation at the coarsest level (step 2h). At D = 13 it fits for h >= 2; below that the driver uses
   the old sort-based dilate, which is cheap at the ~1e5 cells these runs keep.
 - A D = 13 node (g5_1221) is one 8.8 MB function, and gcc needed more than 14 GB to compile it even at
