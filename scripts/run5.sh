@@ -61,7 +61,10 @@ V=$(awk -v g="$NAME" '$1 == g { for(i = 2; i <= NF; i++) if($i ~ /^[-+][0-9]\.[0
 # understated the loss 10x at eps = 1e-7), so the prune estimate is the one to compare with.
 P=$(sed -n "s/^$NAME .* prune \([-+0-9.e]*\) .*/\1/p" "$OUT/$TAG.log" | tail -1)
 SH=$(sed -n "s/.*$NAME eps shadow.*pruning loss left at eps ~ \([-+0-9.e]*\).*/\1/p" "$OUT/$TAG.log" | tail -1)
-awk -v v="$V" -v p="${P:-0}" -v sh="${SH:--}" -v r="$REF" -v su="$SU" -v sd="$SD" -v g="$NAME" -v h="$H" -v e="$EPS" 'BEGIN{
+# the same pass also sums what eps*10 and eps*100 would have kept: the values one and two decades up
+D12=$(sed -n "s/.*$NAME eps shadow: eps\*10 would change the value by \([-+0-9.e]*\), eps\*100 by a further \([-+0-9.e]*\).*/\1 \2/p" "$OUT/$TAG.log" | tail -1)
+awk -v v="$V" -v p="${P:-0}" -v sh="${SH:--}" -v dd="$D12" -v r="$REF" -v su="$SU" -v sd="$SD" -v g="$NAME" -v h="$H" -v e="$EPS" 'BEGIN{
     printf "%s h=%s eps=%s  value %+.6f  prune estimate %.1e  (eps-shadow estimate %s)", g, h, e, v, p, sh
     if(r != "-") printf "  Volkov %+.6f(+%s/-%s)  diff %+.2e (%.2f%%) = %.2f x prune estimate", r, su, sd, v - r, 100*(v - r)/r, (p > 0 ? (v - r)/p : 0)
+    if(split(dd, d, " ") == 2) printf "\n    same run at eps x10: %+.6f   x100: %+.6f", v + d[1], v + d[1] + d[2]
     printf "\n" }' | tee -a "$OUT/summary.txt"
