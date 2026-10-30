@@ -187,7 +187,7 @@ def main(out, jobs):
     need = {nd.key(): nd for nd in nodes if nd.key() not in cache}
     print('tables needed:', len(need), flush=True)
     if need:
-        with mp.Pool(jobs) as pool:
+        with mp.get_context('fork').Pool(jobs) as pool:
             for k, tb, dt in pool.imap_unordered(_tab, list(need.values())):
                 cache[k] = tb; print('  table %s: %d structures, %.0fs' % (k[:8], len(tb), dt), flush=True)
                 c2 = pickle.load(open(cf, 'rb')) if os.path.exists(cf) else {}

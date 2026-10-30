@@ -59,7 +59,7 @@ void uniq(vec_t *v){
 typedef struct { char magic[8], name[32]; double h, eps; int N, top, dim, k; } ckhead_t;
 
 static void head(ckhead_t *hd, const graph_t *g, double h, int N, double eps, int top){
-    memset(hd, 0, sizeof *hd); memcpy(hd->magic, "SQCK4", 6); snprintf(hd->name, sizeof hd->name, "%s", g->name);
+    memset(hd, 0, sizeof *hd); memcpy(hd->magic, MAXD == 12 ? "SQCK4" : "SQCK5", 6); snprintf(hd->name, sizeof hd->name, "%s", g->name);
     hd->h = h; hd->eps = eps; hd->N = N; hd->top = top; hd->dim = DIM; hd->k = K;
 }
 

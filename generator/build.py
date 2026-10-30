@@ -16,7 +16,7 @@ from fractions import Fraction
 import graphs as gr, dirac
 from symb import symbolic
 
-NW = 4    # graded arrays carry Wick counts 0..NW-1
+NW = 4    # graded arrays carry Wick counts 0..NW-1 (gen.py raises it to L above four loops)
 
 class Node:
     def __init__(self, g, seg, kids, kind):
