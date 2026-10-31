@@ -16,7 +16,7 @@
 #                  exact one-point rule in u (glpts.py), and the packed-point wrapper fv_ in the
 #                  vectorised kernels (packpts.py).  Values are unchanged to rounding.
 # Its output is byte-identical to kernels/ (tests/check_regen.sh compares the checksums in
-# kernels/SHA256SUMS).  REGEN_PLAIN=1 stops after step 2 and leaves the plain factored kernels
+# kernels/SHA256SUMS; scripts/regen_update.sh regenerates and installs everything after a generator change).  REGEN_PLAIN=1 stops after step 2 and leaves the plain factored kernels
 # (slower to compile and to run; useful for reading the generated code or debugging a generator).
 #
 # Dirac algebra: gen.py and vp.py (g2 g3 g4, v3 v4) use FORM (https://github.com/form-dev/form) when
