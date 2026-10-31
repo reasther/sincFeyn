@@ -95,6 +95,7 @@ OUTDIR` converts it later.
 | `GEN_SPLIT=1` (the default in build.py) | one C function per node: lower compile memory, about 20% slower kernels |
 | `GEN_SPLIT=0` | node code inline, as in the committed kernels |
 | `GEN_CHUNK=n` | split factored expressions longer than n characters into functions (default 20000) |
+| `GEN_HBASIS=2` | F2 numerators in the symbols cH = B0 - cp and cP instead of cp and cpp, per node whichever FORM makes shorter (`1`: always). Same values; g4_24, g4_59, g4_133 1.5-2.2x faster, g5_3086 1.7x faster at FORM O1, and O3 then finishes at five loops. Default `0`: the committed kernels, byte for byte |
 | `gen.py L OUTDIR --only "VOLKOV STRING"` | generate selected graphs |
 | `gen.py L OUTDIR --range A:B` | generate a slice of the graph list (names stay global) |
 | `gen.py L OUTDIR --dirac-only` | tables only |
