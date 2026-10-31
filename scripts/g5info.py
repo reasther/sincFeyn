@@ -11,6 +11,7 @@ the mirror graph, as ours do.  Prints one line of tab-separated fields:
     name  volkov  D  w  terms  ref  sigma_up  sigma_down     (ref fields "-" without SUPPDIR)
 """
 import sys, os, re, glob
+os.environ.setdefault('_GEN_HBASIS_NOTED', '1')      # a lookup, not a generator run: no GEN_HBASIS note
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'generator'))
 import graphs as gr, build
 

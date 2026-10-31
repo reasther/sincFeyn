@@ -20,6 +20,12 @@ without running anything. VOLKOV_SUPP is the directory of Volkov's `class_*_aver
 supplement of PRD 100, 096004); the tables are not in this repository. Settings are listed at the
 top of the script (JOBS, MAKEJ, THREADS, OUT, WINDOW).
 
+For several graphs, `sh scripts/run5batch.sh LIST 2.4 1e-7` (one graph per line in LIST) first finds
+the kernels that are missing and generates them all in one `gen.py` call, which runs the Dirac tables
+and the per-graph emission in parallel over JOBS processes with one shared table cache (separate
+`gen.py` processes would overwrite each other's `generator/cache_dirac.pkl`). It then builds once,
+serially (MAKEJ=1), and runs the graphs one after another.
+
 ## Generator changes
 
 - `generator/symb.py`: the determinant and adjugate of the loop matrix are now computed over the

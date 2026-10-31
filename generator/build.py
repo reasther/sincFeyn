@@ -587,7 +587,13 @@ def form_optimise(exprs, level=None, joint=None):
         assert env.get(nm, Fraction(0)) == exact, ('FORM output check failed', nm)
     return out
 
-HBASIS = int(os.environ.get('GEN_HBASIS', '0'))   # F2 nodes: 0 cp/cpp symbols, 1 cH/cP, 2 whichever FORM makes shorter
+HBASIS = int(os.environ.get('GEN_HBASIS', '2'))   # F2 nodes: 0 cp/cpp symbols, 1 cH/cP, 2 whichever FORM makes shorter
+if HBASIS == 2 and not os.environ.get('_GEN_HBASIS_NOTED'):
+    os.environ['_GEN_HBASIS_NOTED'] = '1'             # once per run: forked workers and child generators inherit it
+    import sys as _sys
+    print('NOTE: GEN_HBASIS=2 (default): FORM optimises each vertex node in two coefficient bases and keeps the shorter.\n'
+          '      Fastest kernels, but FORM generation takes ~6x longer.  GEN_HBASIS=0 for the old, quick generation.',
+          file=_sys.stderr, flush=True)
 
 def _form_groups(nd, tab):
     groups = {}
