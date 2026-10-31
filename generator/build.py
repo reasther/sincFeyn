@@ -118,7 +118,7 @@ class Chunker:
     def chunk(self, e, ea, pend):
         j = self.n; self.n += 1; nm = 'ch_%s%d' % (self.prefix, j)
         import re
-        used = sorted(set(re.findall(r'\bA?(?:cpp|cp|cP|w)\d+(?:_\d+)?\b', e + ' ' + ea)))
+        used = sorted(set(re.findall(r'\bA?(?:cpp|cp|cP|cH|w)\d+(?:_\d+)?\b', e + ' ' + ea)))
         o = ["static void FN(%s)(const REAL *F, REAL *r){" % nm]
         if used: o.append("  const REAL %s;" % ", ".join("%s=F[%d]" % (u, self.index[u]) for u in used))
         for p in pend: o.append("  REAL c%s[2]; FN(ch_%s%d)(F, c%s);" % (p, self.prefix, p, p))
@@ -176,10 +176,16 @@ def _monomials(nd, combo, pr):
     one entry, unless IDENT=2 expands a shift coefficient into its representative plus a constant."""
     lev = _ident()
     ra, rab = _reps(nd) if lev else (None, None)
+    hb = getattr(nd, '_hb', False) and nd.kind == 'F2' and lev
     lin = []                                     # each factor: list of (coefficient, name or None)
     for j, ch in enumerate(combo):
         if ch not in ('p', 'pp', 'P'): continue
         i = nd.slotline[j]
+        if hb and ch in ('p', 'pp'):             # h/cP basis: cp_i = B_i0 - cH_r, cpp_i = cP_r - cp_i
+            r = ra[i]; b0 = nd.B[i][0]
+            if ch == 'p': lin.append(([(b0, None)] if b0 else []) + [(-1, 'cH%d' % r)])
+            else: lin.append([(1, 'cP%d' % r)] + ([(-b0, None)] if b0 else []) + [(1, 'cH%d' % r)])
+            continue
         if not lev: lin.append([(1, 'c%s%d' % (ch, i))]); continue
         if lev == 1: lin.append([(1, 'c%s%d' % (ch, rab[i]))]); continue
         r = ra[i]; Bi, Br = nd.B[i], nd.B[r]
@@ -211,12 +217,13 @@ def _emit_node_py(nd, tab, chk=None):
     for (combo, pr) in tab:
         for _, fac in _monomials(nd, combo, pr):
             for f in fac:
-                m = re.match(r'c(pp|p|P)(\d+)$', f)
+                m = re.match(r'c(pp|p|P|H)(\d+)$', f)
                 if m: used.add((int(m.group(2)), m.group(1)))
                 else: pairs.add(tuple(map(int, f[1:].split('_'))))
     for (i, ch) in sorted(used):
         if ch == 'p': e = coefU[i][0]
         elif ch == 'pp': e = coefU[i][1]
+        elif ch == 'H': e = U*nd.B[i][0] - coefU[i][0]          # cH_r = B_r0 - cp_r
         else: e = coefU[i][0] + coefU[i][1]
         o.append("    const REAL c%s%d=(%s)*iU;" % (ch, i, cc(e)))
     for (i, j) in sorted(pairs):
@@ -580,8 +587,45 @@ def form_optimise(exprs, level=None, joint=None):
         assert env.get(nm, Fraction(0)) == exact, ('FORM output check failed', nm)
     return out
 
+HBASIS = int(os.environ.get('GEN_HBASIS', '2'))   # F2 nodes: 0 cp/cpp symbols, 1 cH/cP, 2 whichever FORM makes shorter
+if HBASIS == 2 and not os.environ.get('_GEN_HBASIS_NOTED'):
+    os.environ['_GEN_HBASIS_NOTED'] = '1'             # once per run: forked workers and child generators inherit it
+    import sys as _sys
+    print('NOTE: GEN_HBASIS=2 (default): FORM optimises each vertex node in two coefficient bases and keeps the shorter.\n'
+          '      Fastest kernels, but FORM generation takes ~6x longer.  GEN_HBASIS=0 for the old, quick generation.',
+          file=_sys.stderr, flush=True)
+
+def _form_groups(nd, tab):
+    groups = {}
+    for (combo, pr), val in tab.items():
+        w = len(pr); pat = 0
+        for t, c in enumerate(nd.selist):
+            if combo[len(nd.egaps) + t] != '1': pat |= 1 << t
+        pw = Fraction(-1, 2)**w
+        vals = [val*pw] if nd.kind == 'F2' else [Fraction(x)*pw for x in val]
+        for m, fac in _monomials(nd, combo, pr):
+            for k, x in enumerate(vals):
+                if x != 0: groups.setdefault((k, pat, w), []).append((x*m, fac))
+    out = []
+    for k in sorted(groups):
+        d = {}
+        for c, fs in groups[k]: d[tuple(sorted(fs))] = d.get(tuple(sorted(fs)), 0) + c
+        out.append([(c, list(fs)) for fs, c in d.items() if c != 0])
+    return out
+
+def _nops(stmts):
+    return sum(len(re.findall(r'[-+*]', r)) for _, r in stmts)
+
 def _emit_node_form(nd, tab):
     import sys
+    if nd.kind == 'F2' and HBASIS:
+        if HBASIS == 1: nd._hb = True
+        else:
+            cost = []
+            for hb in (False, True):
+                nd._hb = hb; mg = _form_groups(nd, tab)
+                cost.append(_nops(form_optimise([('E%d' % n, mg[n]) for n in range(len(mg))])) if mg else 0)
+            nd._hb = cost[1] < cost[0]
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools'))
     import compact
     base = _emit_node_py(nd, tab, None).split('\n')
