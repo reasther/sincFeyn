@@ -105,6 +105,7 @@ bin/sincqed scale GRAPH                      # finiteness (scaling) test of the 
 | `scripts/regen_update.sh OUTDIR` | regenerate every kernel class and the five-loop kernels in use, install them (old ones kept in OUTDIR/previous), rewrite kernels/SHA256SUMS, rebuild |
 | `scripts/run5.sh GRAPH [H] [EPS]` | one five-loop graph, from nothing to a value compared with Volkov |
 | `scripts/run5batch.sh LIST [H] [EPS]` | a list of five-loop graphs: missing kernels generated together at the start, one serial build, then each run |
+| `scripts/compare5.py SUPPDIR [RESULTS ...]` | finished five-loop results against Volkov 2019, with the abcdeeabcd class sum per (h, eps) |
 
 The header of each script lists its environment variables.
 
