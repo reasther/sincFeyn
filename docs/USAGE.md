@@ -88,6 +88,7 @@ bin/sincqed scale GRAPH                      # finiteness (scaling) test of the 
 | `SINCQED_DROPUNRES` | 1 | count points unresolved even in double-double as zero (reported in the log) |
 | `SINCQED_GROW=0` | | scan the whole coarse window instead of following the support |
 | `SINCQED_HIST=prefix` | | per-level histograms of the term sizes |
+| `SINCQED_CANC` | 0 | 1: per graph, a histogram of log10(sum\|terms\|/\|f\|) over the points evaluated with the \|.\| sums (the depth of the cancellation between the terms; with `SINCQED_ABSKIP=0`, every point). Every run also logs Ref/\|S_h\|, sum\|f\|/\|S_h\| (the cancellation in the integral) and the fraction of points that fell back |
 | `SINCQED_DUMP=prefix` | | write the evaluated points (coarse levels, and a 1-in-`SINCQED_DUMPSAMPLE` sample of the final level) |
 | `SINCQED_LOG`, `SINCQED_RESULTS` | sincqed.log, sincqed_results.txt | output files (`-` = none) |
 | `SINCQED_PROGRESS` | | seconds between progress lines |

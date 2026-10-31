@@ -29,10 +29,19 @@ static inline double qvalue(double vq, double abq, double w, double *u, long *nd
     return v;
 }
 
+/* SINCQED_CANC=1: per point with the |.| sum, a histogram of log10(sum|terms|/|value|) (the depth of the
+ * cancellation between the terms of the integrand), counts and sum|value|, per thread; printed per graph */
+int CANC = 0; double CANCH[CANC_T][CANC_B][3];
+static inline void canc_add(double v, double ab){
+    double c = fabs(v) > 0 ? ab/fabs(v) : INFINITY; int b = !(c < 1e30) ? CANC_B - 1 : c >= 1 ? (int)log10(c) : 0;
+    if(b > CANC_B - 1) b = CANC_B - 1;
+    double *r = CANCH[omp_get_thread_num() & (CANC_T - 1)][b]; r[0] += 1; r[1] += fabs(v); r[2] += ab;
+}
 /* the tests after the double evaluation v (|.| sum ab) at a node with Sinc variables sf, weight w */
 static double finish(double v, double ab, const double *sf, double w, int skip, long *nq, double *unres, int *near){
     *near = 0;
     if(skip && !ABCHECK){ v *= w; return isfinite(v) ? v : 0; }
+    double v0 = v;
     double bnd = ab*w*16*DBL_EPSILON/DDSLACK;
     if(!(bnd <= NEARF*ABSERR)) *near = 1;
     if(!(bnd <= ABSERR)){
@@ -47,8 +56,10 @@ static double finish(double v, double ab, const double *sf, double w, int skip, 
             #pragma omp atomic
             UNRESDROP++;
         }
+        if(CANC) canc_add(v, (double)abq*w);
         return v;
     }
+    if(CANC && isfinite(v0)) canc_add(v0*w, ab*w);
     v *= w; return isfinite(v) ? v : 0;
 }
 double leafx(const int *k, int skip, long *nq, double *unres, int *near){

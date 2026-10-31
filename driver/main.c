@@ -40,7 +40,7 @@ static void run_graph(const graph_t *g, double h, int N, double eps, int top, do
     CURNAME = g->name;
     lattice_setup(g, h, N, top);
     say("  [%6.0fs]  graph %d/%d %s (%s, D=%d) started%s\n", wtime() - T0, CURI, CURN, g->name, g->volkov, g->D, USEGPU ? " on the GPU" : "");
-    ABSKIPPED = ABMISS = 0; UNRESDROP = 0;
+    ABSKIPPED = ABMISS = 0; UNRESDROP = 0; memset(CANCH, 0, sizeof CANCH);
     res_t R = hsum(g, h, N, eps, top);
     double w = g->weight, v = w*R.S[0], d2 = fabs(R.S[1]-R.S[0]);
     double disc = R.Ah > 0 ? 2*d2*d2/R.Ah : 0;
@@ -50,6 +50,15 @@ static void run_graph(const graph_t *g, double h, int N, double eps, int top, do
     const ref_t *r = findref(g->volkov);
     if(r) say("  ref %+.12f (%s) diff %+.2e", r->val, r->src, v - r->val);
     say("\n");
+    /* cancellation in the integral: the reference scale (sum|f| at the coarsest level, which sets the keep
+     * threshold eps*Ref) and sum|f| at step h, against the value */
+    { double s0 = fabs(R.S[0]);
+      say("# %s cancellation: Ref/|S_h| %.3e  sum|f|/|S_h| %.3e  quad fraction %.2e\n", g->name, s0 > 0 ? R.ref/s0 : INFINITY, s0 > 0 ? R.Ah/s0 : INFINITY, R.nev ? (double)R.nq/R.nev : 0); }
+    if(CANC){ double c[CANC_B][3] = {{0}}, n = 0, a = 0;
+      for(int t = 0; t < CANC_T; t++) for(int b = 0; b < CANC_B; b++) for(int j = 0; j < 3; j++) c[b][j] += CANCH[t][b][j];
+      for(int b = 0; b < CANC_B; b++){ n += c[b][0]; a += c[b][1]; }
+      say("# %s pointwise cancellation log10(sum|terms|/|f|): bin  points  share of sum|f|  (%.0f points with the |.| sum)\n", g->name, n);
+      for(int b = 0; b < CANC_B; b++) if(c[b][0]) say("# %s   canc %2d%s  %10.0f  %.3e\n", g->name, b, b == CANC_B-1 ? "+" : " ", c[b][0], a > 0 ? c[b][1]/a : 0); }
     say("# %s: fallback when eps*sum|terms| > %.1e per point (max of G2_ABSERR and SINCQED_ABREL*eps*Ref; SINCQED_DDSLACK %g)\n", g->name, ABSERR, DDSLACK);
     if(ABSKIP) say("# %s: %ld of %ld evaluations skipped the |.| sums (no fallback check)%s\n", g->name, ABSKIPPED, R.nev,
                    ABCHECK ? "" : "");
@@ -172,6 +181,7 @@ int main(int argc, char **argv){
     if(getenv("SINCQED_ABCHECK")) ABCHECK = atoi(getenv("SINCQED_ABCHECK"));
     if(getenv("SINCQED_NEARF")) NEARF = atof(getenv("SINCQED_NEARF"));
     if(getenv("SINCQED_DDSLACK")) DDSLACK = atof(getenv("SINCQED_DDSLACK"));
+    if(getenv("SINCQED_CANC")) CANC = atoi(getenv("SINCQED_CANC"));
     if(getenv("SINCQED_DROPUNRES")) DROPUNRES = atoi(getenv("SINCQED_DROPUNRES"));
     if(getenv("SINCQED_GROW")) GROW = atoi(getenv("SINCQED_GROW"));
     if(getenv("SINCQED_CKPT")) CKPT_EVERY = atof(getenv("SINCQED_CKPT"));

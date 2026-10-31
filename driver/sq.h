@@ -48,6 +48,9 @@ double leafx(const int *k, int skip, long *nq, double *unres, int *near);
 void eval_batch(long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *nq, double *unres);
 extern double DDSLACK; extern double NEARF; extern int ABSKIP, ABCHECK; extern long ABMISS, ABSKIPPED;
 extern int DROPUNRES; extern long UNRESDROP;
+#define CANC_T 64
+#define CANC_B 34
+extern int CANC; extern double CANCH[CANC_T][CANC_B][3];
 #ifdef SQ_GPU
 extern int USEGPU;                              /* this graph runs its double half on the GPU (gpu.cu) */
 void eval_batch_gpu(long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *nq, double *unres);
