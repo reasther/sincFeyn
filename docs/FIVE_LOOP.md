@@ -122,6 +122,27 @@ to about -0.3840. The remaining 0.8% to Volkov's -0.3872(6) is presumably the h 
 h = 2.2 and 2.0 at eps = 1e-9 are the next runs. g5_372 at eps = 1e-7 (+0.1007 against +0.1482) is a
 cancelling 4-term graph and is far from converged in eps.
 
+Tension class X227 (Aoyama et al. 2412.06473 Table I, 3.6 sigma): g5_1663 = 4; 1-7, 2-5, 3-11, 6-10, 8-9
+(D = 12, 4 terms, |integrand|/value 1.08) at h = 2.4, eps = 1e-8 gives -4.441509 against Volkov's
+-4.441411(1321), a difference of 1e-4 (0.002%). The same pass gives -4.2398 at 1e-7 and -3.7925 at 1e-6
+(per-decade changes -0.447, -0.202), so the pruning ladder is not visibly converged and the agreement
+is better than the prune estimate (1.9e-2) can vouch for; eps = 1e-9 would test it. Cost: 2.2e9
+evaluations, 531k cells, 9.2 h on a 12-thread laptop (including idle gaps), against Volkov's 7.6 V100-hours.
+
+Two more clean graphs from the tension classes, h = 2.4, eps = 1e-8 (laptop, 12 threads), with the 1e-7
+and 1e-6 values from the same pass:
+
+| graph | class | 1e-6 | 1e-7 | 1e-8 | Volkov | diff at 1e-8 | time |
+|---|---|---|---|---|---|---|---|
+| g5_1663 | X227 | -3.7925 | -4.2398 | -4.441509 | -4.441411(1321) | -1e-4 (0.00%) | 33047 s |
+| g5_3024 | X227 | -5.3560 | -6.0958 | -6.344462 | -6.061590(1400) | -0.283 (4.7%) | 10525 s |
+| g5_717 | X090 | -4.5481 | -5.1254 | -5.387754 | -5.416100(1100) | +0.028 (0.5%) | 10156 s |
+
+All three ladders still move by -0.2 to -0.3 per decade at 1e-8 (ratios 2.2-3.0). g5_3024 is already past
+Volkov and moving away, as g5_1078 did; continuing the ladders geometrically would put all three 4-7% more
+negative than Volkov. So at h = 2.4 either the pruning loss stops being geometric, or there is an
+h-dependent offset. An h scan at fixed eps (g5_3086 at eps = 1e-8, h = 2.4, 2.2, 2.0, 1.8) is the next test.
+
 An independent build on a 24-thread Mac (Homebrew gcc, FORM built from source) gave g5_3086 at h = 2.4,
 eps = 1e-7 as -0.370940243117 with the same 306728281 evaluations, identical to the Linux run, in 321 s.
 
