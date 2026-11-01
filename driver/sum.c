@@ -571,7 +571,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }
         C.nl = 0; C.Slev[C.nl++] = S;
         double tg1 = wtime();
-        dilate(&C.cur, 1 << top);                /* add the axis neighbours */
+        if(top > 0) dilate(&C.cur, 1 << top);    /* add the axis neighbours (for the refinement: none at top = 0) */
         if(getenv("SINCQED_TIMING")) say("# %s timing: top level %.1fs (grow loop %.1fs: eval %.1fs, bookkeeping %.1fs; tiers %.1fs), dilate+sort %.1fs\n", g->name, tg1 - tg0, TGROW, TGE, TGS, TGT, wtime() - tg1);
         C.R.kept_top = C.cur.n;
         C.lev = top - 1; C.next = 0;
