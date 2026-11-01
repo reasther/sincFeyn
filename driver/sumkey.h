@@ -89,6 +89,13 @@ static int SFX(dilate)(vec_t *cur, int st){
     return 1;
 }
 
+/* is y in the table (unlike hfind, y may be absent) */
+static inline int SFX(hhas)(const KS *H, long mask, KT y){
+    long q = KHASH(y) & mask;
+    while(!KEMPTY(H, q)){ if(KEQ(H, q, y)) return 1; q = (q + 1) & mask; }
+    return 0;
+}
+
 /* support-following scan at level lev (step 2^lev): start at z = 0 and grow through axis neighbours
  * while |f| is above thr = eps_rel * (running sum|f|); points below it are evaluated (the boundary)
  * but not expanded.  Cost ~ support size x 2D, not (box width)^D.  Same outputs as scan(); *A is
@@ -96,9 +103,19 @@ static int SFX(dilate)(vec_t *cur, int st){
 static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A, double *e1, double *e2, double *drop, long *nev, long *nq, double *un){
     int st = 1 << lev, nb; KT P[MAXD]; int W = SFX(keyradix)(st, P, &nb);
     if(!W) return 0;
-    /* every point evaluated so far, by packed key; OW[slot] is UINT32_MAX for a point seen in an earlier
-     * frontier, else the claim of the first candidate (lowest id) that reached it in this one */
+    /* Which evaluated points must a new candidate be checked against?  The lattice is bipartite (a step
+     * flips the parity of sum k/st) and frontier L holds the points first reached in L steps, so the
+     * neighbours of a kept point of frontier L lie in frontiers L-1 and L+1.  A kept point of an earlier
+     * frontier j would have put its neighbours into frontier j+1, so the only kept points a candidate
+     * can repeat are those of frontier L-1.  Points evaluated but not kept (the boundary) are not expanded
+     * and can be met again from any later frontier.  So two tables: HBD, every boundary point so far (it only
+     * grows), and HS, rebuilt each frontier from the previous frontier's kept points (pk) plus this
+     * frontier's candidates.  OW[slot] is UINT32_MAX for a point already seen, else the claim of the first
+     * candidate (lowest id) that reached it.  Same frontiers, in the same order, as one table of every point. */
     long cap = 1 << 20; KS *HS = (KS*)calloc(cap, sizeof(KS)); unsigned *OW = (unsigned*)calloc(cap, 4); long nh = 0;
+    long cb = 1 << 20; KS *HBD = (KS*)calloc(cb, sizeof(KS)); long nhb = 0;
+    vec_t pk = {0};
+    int store = lev > 0;     /* top = 0: nothing refines the kept points, so only their |f| is kept (final threshold) */
     #define KEY(k) ({ KT _y = 1; for(int _i = 0; _i < DIM; _i++) _y = _y*W + (KT)((k)[_i]/st + K/st); _y; })
     vec_t fr = {0}, nx = {0};
     double pw = pow(st, DIM), a = 0, x1 = 0, x2 = 0, dr = 0, u = 0; long ne = 0, q = 0; ksum_t ks = {0, 0};
@@ -118,18 +135,17 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         if(USEGPU){ int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); for(long i = 0; i < fr.n; i++) ptget(&fr.p[i], fk[i]);
             eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; grow_progress(lay, DONE, tw0, keep->n, fr.n, fr.n, sk0); }
         else if(GROWBATCH){      /* batches through eval_batch: the kernel's packed SIMD form, same values */
-            int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); long ns = 0;
-            #pragma omp parallel for schedule(static) reduction(+:ns)
-            for(long i = 0; i < fr.n; i++){ ptget(&fr.p[i], fk[i]); sk[i] = gs && fr.p[i].k[PFLAG] > 0; ns += sk[i]; }
-            ABSKIPPED += ns;
-            long qq = 0; double uu = 0; const long CE = 1L << 20;
+            long ns = 0, qq = 0; double uu = 0; const long CE = 1L << 20;
+            int (*fk)[MAXD] = (int(*)[MAXD])malloc((fr.n < CE ? fr.n : CE)*sizeof *fk);   /* one chunk's coordinates at a time */
             for(long c0 = 0; c0 < fr.n; c0 += CE){
                 long m = fr.n - c0 < CE ? fr.n - c0 : CE;
+                #pragma omp parallel for schedule(static) reduction(+:ns)
+                for(long i = 0; i < m; i++){ ptget(&fr.p[c0 + i], fk[i]); sk[c0 + i] = gs && fr.p[c0 + i].k[PFLAG] > 0; ns += sk[c0 + i]; }
                 #pragma omp parallel
-                eval_batch(m, (const int(*)[MAXD])(fk + c0), sk + c0, nr + c0, v + c0, &qq, &uu);
+                eval_batch(m, (const int(*)[MAXD])fk, sk + c0, nr + c0, v + c0, &qq, &uu);
                 DONE += m; grow_progress(lay, DONE, tw0, keep->n, c0 + m, fr.n, sk0);
             }
-            q += qq; u += uu; free(fk);
+            ABSKIPPED += ns; q += qq; u += uu; free(fk);
         }
         else
         #pragma omp parallel for reduction(+:q,u) schedule(dynamic,64)
@@ -155,30 +171,55 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
             if(mx == K) x1 += fabs(v[i])*pw; else if(mx == K - st) x2 += fabs(v[i])*pw;
             if(!(fabs(v[i]) >= thr)){ dr += fabs(v[i])*pw; continue; }
             if(keep->n >= nkv){ nkv = 2*nkv + 1024; kv = (double*)realloc(kv, nkv*sizeof(double)); }
-            kv[keep->n] = fabs(v[i]); push(keep, k); if(ABSKIP && DIM < MAXD) keep->p[keep->n-1].k[PFLAG] = !nr[i];
+            kv[keep->n] = fabs(v[i]);
+            if(store){ push(keep, k); if(ABSKIP && DIM < MAXD) keep->p[keep->n-1].k[PFLAG] = !nr[i]; } else keep->n++;
             kj[nk++] = i;
+        }
+        /* this frontier's boundary into HBD; HS from scratch with the previous frontier's kept points */
+        { long nbd = fr.n - nk;
+          if(nhb + nbd > GROWLOAD*cb){
+              long oc = cb; KS *O = HBD; while(nhb + nbd > GROWLOAD*cb) cb *= 2; HBD = (KS*)calloc(cb, sizeof(KS)); nhb = 0;
+              #pragma omp parallel for schedule(static)
+              for(long j = 0; j < oc; j++) if(!KEMPTY(O, j)) SFX(hslot)(HBD, cb - 1, KGET(O, j), &nhb);
+              free(O); }
+          #pragma omp parallel for schedule(static)
+          for(long i = 0; i < fr.n; i++) if(!(fabs(v[i]) >= thr)){ int k[MAXD]; ptget(&fr.p[i], k); SFX(hslot)(HBD, cb - 1, KEY(k), &nhb); }
+          long want = 1 << 20; while(pk.n + fr.n > GROWLOAD*want) want *= 2;   /* this frontier's size as a guess at the next */
+          if(cap < want || cap > 4*want){ free(HS); free(OW); cap = want; HS = (KS*)malloc(cap*sizeof(KS)); OW = (unsigned*)malloc(cap*4); }
+          memset(HS, 0, cap*sizeof(KS)); memset(OW, 0, cap*4); nh = 0;
+          #pragma omp parallel for schedule(static)
+          for(long i = 0; i < pk.n; i++){ int k[MAXD]; ptget(&pk.p[i], k); OW[SFX(hslot)(HS, cap - 1, KEY(k), &nh)] = UINT32_MAX; }
         }
         /* the axis neighbours not seen before go to the next frontier, in the order of a serial pass over
          * (kept point, axis, sign): all candidates claim their slot in parallel (the lowest id wins), then
          * the winners are written in id order.  Chunks keep the ids below 2^32. */
         nx.n = 0;
+        /* chunks are sized so that even if every candidate were new the table stays below GROWLOAD full
+         * (the frontier order does not depend on the chunking: a point claimed in an earlier chunk is skipped) */
         const long CH = (1L << 31)/(2*DIM);
-        for(long c0 = 0; c0 < nk; c0 += CH){
-            long c1 = c0 + CH < nk ? c0 + CH : nk, nc = (c1 - c0)*2*DIM;
-            while(2*(nh + nc) > cap){                                   /* rehash: every key in it is from an earlier chunk */
-                long oc = cap; KS *O = HS; cap *= 2; HS = (KS*)calloc(cap, sizeof(KS)); free(OW); OW = (unsigned*)calloc(cap, 4); nh = 0;
+        for(long c0 = 0, c1; c0 < nk; c0 = c1){
+            long room;
+            while((room = (long)(GROWLOAD*cap) - nh)/(2*DIM) < (nk - c0 < cap/(64*DIM) ? nk - c0 : cap/(64*DIM)) || room < 2*DIM){
+                long oc = cap; KS *O = HS; cap *= 2; free(OW); HS = (KS*)calloc(cap, sizeof(KS)); nh = 0;   /* rehash: every key in it is from an earlier chunk */
                 #pragma omp parallel for schedule(static)
-                for(long j = 0; j < oc; j++) if(!KEMPTY(O, j)) OW[SFX(hslot)(HS, cap - 1, KGET(O, j), &nh)] = UINT32_MAX;
-                free(O); }
+                for(long j = 0; j < oc; j++) if(!KEMPTY(O, j)) SFX(hslot)(HS, cap - 1, KGET(O, j), &nh);
+                free(O); OW = (unsigned*)malloc(cap*4);
+                #pragma omp parallel for schedule(static)
+                for(long j = 0; j < cap; j++) OW[j] = KEMPTY(HS, j) ? 0 : UINT32_MAX; }
+            c1 = c0 + room/(2*DIM); if(c1 > c0 + CH) c1 = c0 + CH; if(c1 > nk) c1 = nk;
+            long nc = (c1 - c0)*2*DIM;
             if(nc > nown){ nown = nc; own = (unsigned char*)realloc(own, nown); }
             long mask = cap - 1;
             #pragma omp parallel for schedule(static)
             for(long j = c0; j < c1; j++){
-                int k[MAXD]; ptget(&fr.p[kj[j]], k); KT y0 = KEY(k);
+                int k[MAXD]; ptget(&fr.p[kj[j]], k); KT y0 = KEY(k); unsigned char *ow = own + (j - c0)*2*DIM;
                 for(int d = 0; d < DIM; d++) for(int sg = -1; sg <= 1; sg += 2){
-                    int kk = k[d] + st*sg; if(kk > K || kk < -K) continue;
-                    unsigned cl = UINT32_MAX - 1 - (unsigned)((j - c0)*2*DIM + 2*d + (sg > 0));
-                    long q = SFX(hslot)(HS, mask, sg > 0 ? y0 + P[d] : y0 - P[d], &nh);
+                    int kk = k[d] + st*sg, c = 2*d + (sg > 0); ow[c] = 0; if(kk > K || kk < -K) continue;
+                    KT y = sg > 0 ? y0 + P[d] : y0 - P[d];
+                    if(SFX(hhas)(HBD, cb - 1, y)) continue;            /* a boundary point of an earlier frontier */
+                    ow[c] = 1;
+                    unsigned cl = UINT32_MAX - 1 - (unsigned)((j - c0)*2*DIM + c);
+                    long q = SFX(hslot)(HS, mask, y, &nh);
                     unsigned o = __atomic_load_n(&OW[q], __ATOMIC_RELAXED);
                     while(o < cl && !__atomic_compare_exchange_n(&OW[q], &o, cl, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) ;
                 }
@@ -190,9 +231,9 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
               for(long j = c0; j < c1; j++){
                   int k[MAXD]; ptget(&fr.p[kj[j]], k); KT y0 = KEY(k); unsigned char *ow = own + (j - c0)*2*DIM;
                   for(int d = 0; d < DIM; d++) for(int sg = -1; sg <= 1; sg += 2){
-                      int kk = k[d] + st*sg, c = 2*d + (sg > 0); ow[c] = 0; if(kk > K || kk < -K) continue;
+                      int c = 2*d + (sg > 0); if(!ow[c]) continue;
                       unsigned cl = UINT32_MAX - 1 - (unsigned)((j - c0)*2*DIM + c);
-                      if(OW[SFX(hfind)(HS, mask, sg > 0 ? y0 + P[d] : y0 - P[d])] == cl){ ow[c] = 1; n++; }
+                      if(OW[SFX(hfind)(HS, mask, sg > 0 ? y0 + P[d] : y0 - P[d])] == cl) n++; else ow[c] = 0;
                   }
               }
               cnt[tid + 1] = n;
@@ -215,17 +256,21 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
             }
             nx.n += cnt[nt]; free(cnt);
         }
+        if(nk > pk.cap){ pk.cap = nk + nk/2 + 1024; pk.p = (pt_t*)realloc(pk.p, pk.cap*sizeof(pt_t)); }
+        #pragma omp parallel for schedule(static)
+        for(long j = 0; j < nk; j++) pk.p[j] = fr.p[kj[j]];
+        pk.n = nk;
         free(v); free(nr); free(sk);
         vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1; lay++;
     }
     TGROW = wtime() - tw0; double tt0 = wtime();
     /* the running threshold was lower early on: re-apply the final one */
     { double thr = eps_rel*a; long m = 0;
-      for(long i = 0; i < keep->n; i++){ if(kv[i] >= thr){ kv[m] = kv[i]; keep->p[m++] = keep->p[i]; } else dr += kv[i]*pw; }
+      for(long i = 0; i < keep->n; i++){ if(kv[i] >= thr){ kv[m] = kv[i]; if(store) keep->p[m] = keep->p[i]; m++; } else dr += kv[i]*pw; }
       keep->n = m;
       /* shadow tiers: a run with eps*10^t keeps a point only if it reaches it from z = 0 through points with
        * |f| >= 10^t thr (the grow expands nothing else); flood-fill the kept set for t = 1, 2 */
-      if(DIM < MAXD && m && lev > 0){       /* top = 0 has no refinement to use the tiers */
+      if(DIM < MAXD && m && store){       /* top = 0 has no refinement to use the tiers */
           /* index of the kept points by packed key (built in parallel), then a serial flood fill that
            * compares 64-bit keys only */
           KT *KY = (KT*)malloc(m*sizeof(KT));
@@ -278,7 +323,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
       keep->n = m; }
     #undef KEY
     #undef SEEN
-    free(kv); free(fr.p); free(nx.p); free(HS); free(OW); free(kj); free(own); TGT = wtime() - tt0;
+    free(kv); free(fr.p); free(nx.p); free(HS); free(OW); free(HBD); free(pk.p); free(kj); free(own); TGT = wtime() - tt0;
     *S = kval(&ks); *A = a; *e1 = x1; *e2 = x2; *drop = dr; *nev += ne; *nq += q; *un += u;
     return 1;
 }
