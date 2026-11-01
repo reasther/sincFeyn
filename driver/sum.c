@@ -545,7 +545,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
     memset(TQ, 0, sizeof TQ); TGROW = 0;
     ABSERR = ABSERR0;
     int resumed = ckpt_load(g, h, N, eps, top, &C);
-    ES1 = ES2 = 0; KC[0] = KC[1] = KC[2] = 0; ESOK = !resumed && DIM < MAXD;
+    ES1 = ES2 = 0; KC[0] = KC[1] = KC[2] = 0; ESOK = !resumed && DIM < MAXD && top > 0;   /* the shadow sums are kept by the refinement */
     if(resumed){
         ES1 = C.es[0]; ES2 = C.es[1]; PDS = C.es[2]; PDA = C.es[3]; PDN = C.es[4]; ESOK = C.esok;
         PSKIP = C.cnt[0]; ABSKIPPED = C.cnt[1]; ABMISS = C.cnt[2];
@@ -571,7 +571,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }
         C.nl = 0; C.Slev[C.nl++] = S;
         double tg1 = wtime();
-        dilate(&C.cur, 1 << top);                /* add the axis neighbours */
+        if(top > 0) dilate(&C.cur, 1 << top);    /* add the axis neighbours (for the refinement: none at top = 0) */
         if(getenv("SINCQED_TIMING")) say("# %s timing: top level %.1fs (grow loop %.1fs: eval %.1fs, bookkeeping %.1fs; tiers %.1fs), dilate+sort %.1fs\n", g->name, tg1 - tg0, TGROW, TGE, TGS, TGT, wtime() - tg1);
         C.R.kept_top = C.cur.n;
         C.lev = top - 1; C.next = 0;
