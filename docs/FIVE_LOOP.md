@@ -65,6 +65,17 @@ make -j2 CLASSES="g2 g5" QOPT=O0
   sums as before, and SINCQED_KEY128=1 forces the 128-bit one for testing. Before the 128-bit keys a
   top = 0 run (no coarse level, so the grow runs at step h) needed N <= 37 for D = 12 and N <= 28 for
   D = 13, and silently fell back to a full box scan otherwise.
+- top = 0 (no coarse level; `sincqed run H N EPS 0 GRAPH`): the grow then runs at step h and expands
+  down to eps*1e-3, evaluating only the kept points and a one-point boundary shell, with no refinement.
+  At five loops this removes most of the pruning loss: g5_3086 at h = 2.4, top = 0, eps 1e-6 gave
+  -0.383953 (173M evaluations, 504 s on 24 threads) where top = 1 needed eps ~1e-9 (top = 1 at 1e-7:
+  -0.370940 from 306M evaluations; Volkov -0.387249).  The refinement's 2^D children per kept cell,
+  mostly below threshold, are what top = 1 spends its evaluations on.  The grow evaluates each frontier
+  through eval_batch (packed SIMD kernel calls, same values; SINCQED_GROWBATCH=0 for one point at a
+  time) and, at top = 0 only, skips the |.| sums for points reached from a checked, non-near point
+  within SINCQED_GROWSKIP generations (default 2; 0 = check all).  g5_3086 h = 2.4 N = 37 eps 1e-4,
+  4 cores: 825 s one at a time, 190 s batched, 137 s batched + skip (57% skipped; 114 s at GROWSKIP=4),
+  identical values; SINCQED_ABCHECK=1 found 0 skipped points that needed the fallback (2 at GROWSKIP=4).
 - A D = 13 node (g5_1221) is one 8.8 MB function, and gcc needed more than 14 GB to compile it even at
   -O1. `python3 tools/splitform.py FILE` cuts the FORM blocks into chunk functions of 4000
   statements. Two kernels then build in 8 minutes with 4.3 GB peak. The values are bit-identical:

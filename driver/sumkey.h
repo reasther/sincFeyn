@@ -110,8 +110,27 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
     double tw0 = wtime(); TGE = TGS = 0;
     while(fr.n){ double te0 = wtime();
         double *v = (double*)malloc(fr.n*sizeof(double)); unsigned char *nr = (unsigned char*)malloc(fr.n);
+        /* gs > 0 (top = 0 only, where no refinement follows): a frontier point skips the |.| sums when the
+         * point that reached it was checked and not near the fallback, or skipped fewer than gs generations
+         * after such a point (the generation count is in PFLAG); 0 = every point checked, as before */
+        int gs = lev == 0 && ABSKIP && DIM < MAXD && !USEGPU ? GROWSKIP : 0;
+        unsigned char *sk = (unsigned char*)calloc(fr.n, 1);
         if(USEGPU){ int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); for(long i = 0; i < fr.n; i++) ptget(&fr.p[i], fk[i]);
             eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; progress(STAGE, DONE, DONE); }
+        else if(GROWBATCH){      /* batches through eval_batch: the kernel's packed SIMD form, same values */
+            int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); long ns = 0;
+            #pragma omp parallel for schedule(static) reduction(+:ns)
+            for(long i = 0; i < fr.n; i++){ ptget(&fr.p[i], fk[i]); sk[i] = gs && fr.p[i].k[PFLAG] > 0; ns += sk[i]; }
+            ABSKIPPED += ns;
+            long qq = 0; double uu = 0; const long CE = 1L << 20;
+            for(long c0 = 0; c0 < fr.n; c0 += CE){
+                long m = fr.n - c0 < CE ? fr.n - c0 : CE;
+                #pragma omp parallel
+                eval_batch(m, (const int(*)[MAXD])(fk + c0), sk + c0, nr + c0, v + c0, &qq, &uu);
+                DONE += m; progress(STAGE, DONE, DONE + fr.n - c0 - m);
+            }
+            q += qq; u += uu; free(fk);
+        }
         else
         #pragma omp parallel for reduction(+:q,u) schedule(dynamic,64)
         for(long i = 0; i < fr.n; i++){
@@ -188,13 +207,15 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
                   for(int d = 0; d < DIM; d++) for(int sg = -1; sg <= 1; sg += 2) if(ow[2*d + (sg > 0)]){
                       pt_t *p = &nx.p[o++]; memset(p, 0, sizeof *p); for(int i = 0; i < DIM; i++) p->k[i] = (signed char)k[i];
                       p->k[d] = (signed char)(k[d] + st*sg);
+                      if(gs){ long pi = kj[j]; int pg = fr.p[pi].k[PFLAG];
+                          p->k[PFLAG] = (signed char)(!sk[pi] ? !nr[pi] : (pg < gs ? pg + 1 : 0)); }
                       OW[SFX(hfind)(HS, mask, sg > 0 ? y0 + P[d] : y0 - P[d])] = UINT32_MAX;
                   }
               }
             }
             nx.n += cnt[nt]; free(cnt);
         }
-        free(v); free(nr);
+        free(v); free(nr); free(sk);
         vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1;
     }
     TGROW = wtime() - tw0; double tt0 = wtime();

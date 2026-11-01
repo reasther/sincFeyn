@@ -249,6 +249,10 @@ static long hfind128(const ks128_t *HK, long mask, u128_t y){
     return i;
 }
 
+/* the grow's evaluation (see grow in sumkey.h): GROWBATCH 1 sends each frontier through eval_batch (packed
+ * SIMD kernel calls, same values; 0 = one leafx per point, as before); GROWSKIP = generations of |.|-sum
+ * skipping allowed after a checked point at top = 0 (SINCQED_GROWSKIP, default 2; 0 = check every point) */
+static int GROWBATCH = 1, GROWSKIP = 2;
 #define KT u64_t
 #define KS u64_t
 #define KTOP (1ULL << 63)
@@ -297,6 +301,10 @@ static void dilate(vec_t *cur, int st){
     if(!dilate128(cur, st)) dilate_old(cur, st);
 }
 static int grow(int lev, double eps_rel, vec_t *keep, double *S, double *A, double *e1, double *e2, double *drop, long *nev, long *nq, double *un){
+    static int init = 0;
+    if(!init){ init = 1; const char *e;
+        if((e = getenv("SINCQED_GROWBATCH"))) GROWBATCH = atoi(e);
+        if((e = getenv("SINCQED_GROWSKIP"))) GROWSKIP = atoi(e); }
     if(!key128() && grow64(lev, eps_rel, keep, S, A, e1, e2, drop, nev, nq, un)) return 1;
     return grow128(lev, eps_rel, keep, S, A, e1, e2, drop, nev, nq, un);
 }
