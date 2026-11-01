@@ -107,8 +107,8 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
     OW[SFX(hslot)(HS, cap - 1, KEY(k0), &nh)] = UINT32_MAX;
     long *kj = NULL, nkj = 0; unsigned char *own = NULL; long nown = 0;      /* kept frontier points; per-candidate owner flags */
     DONE = 0; snprintf(STAGE, sizeof STAGE, "grow at step %dh", st);
-    double tw0 = wtime(); TGE = TGS = 0;
-    while(fr.n){ double te0 = wtime();
+    double tw0 = wtime(); TGE = TGS = 0; int lay = 0;
+    while(fr.n){ double te0 = wtime(); double sk0 = kval(&ks);
         double *v = (double*)malloc(fr.n*sizeof(double)); unsigned char *nr = (unsigned char*)malloc(fr.n);
         /* gs > 0 (top = 0 only, where no refinement follows): a frontier point skips the |.| sums when the
          * point that reached it was checked and not near the fallback, or skipped fewer than gs generations
@@ -116,7 +116,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         int gs = lev == 0 && ABSKIP && DIM < MAXD && !USEGPU ? GROWSKIP : 0;
         unsigned char *sk = (unsigned char*)calloc(fr.n, 1);
         if(USEGPU){ int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); for(long i = 0; i < fr.n; i++) ptget(&fr.p[i], fk[i]);
-            eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; progress(STAGE, DONE, DONE); }
+            eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; grow_progress(lay, DONE, tw0, keep->n, fr.n, fr.n, sk0); }
         else if(GROWBATCH){      /* batches through eval_batch: the kernel's packed SIMD form, same values */
             int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); long ns = 0;
             #pragma omp parallel for schedule(static) reduction(+:ns)
@@ -127,7 +127,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
                 long m = fr.n - c0 < CE ? fr.n - c0 : CE;
                 #pragma omp parallel
                 eval_batch(m, (const int(*)[MAXD])(fk + c0), sk + c0, nr + c0, v + c0, &qq, &uu);
-                DONE += m; progress(STAGE, DONE, DONE + fr.n - c0 - m);
+                DONE += m; grow_progress(lay, DONE, tw0, keep->n, c0 + m, fr.n, sk0);
             }
             q += qq; u += uu; free(fk);
         }
@@ -138,7 +138,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
             { long dn;
               #pragma omp atomic capture
               dn = ++DONE;
-              if(!(dn & 255)) progress(STAGE, dn, dn + fr.n - i); }
+              if(!(dn & 255)) grow_progress(lay, dn, tw0, keep->n, i, fr.n, sk0); }
         }
         ne += fr.n; double te1 = wtime(); TGE += te1 - te0;
         if(PRED > 0) vreserve(fr.n);
@@ -216,7 +216,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
             nx.n += cnt[nt]; free(cnt);
         }
         free(v); free(nr); free(sk);
-        vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1;
+        vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1; lay++;
     }
     TGROW = wtime() - tw0; double tt0 = wtime();
     /* the running threshold was lower early on: re-apply the final one */
