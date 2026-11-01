@@ -164,8 +164,9 @@ static int select_graphs(int argc, char **argv, int a, const graph_t ***out){
    reported instead of being read as a number */
 static int isnum(const char *s){ char *e; strtod(s, &e); return e != s && *e == 0; }
 
+void face_register(void);
 int main(int argc, char **argv){
-    register_graphs();
+    register_graphs(); face_register();
     if(getenv("G2_ABSERR")) ABSERR = ABSERR0 = atof(getenv("G2_ABSERR"));
     if(getenv("SINCQED_ABREL")) ABREL = atof(getenv("SINCQED_ABREL"));
     if(getenv("SINCQED_ABSKIP")) ABSKIP = atoi(getenv("SINCQED_ABSKIP"));
@@ -190,6 +191,19 @@ int main(int argc, char **argv){
             if(selected(g, argv[2])){ if(g->ptq) scale_test(g, kap, seed); else printf("%-6s %-22s (no scale test for VP graphs)\n", g->name, g->volkov); }
         }
         return 0;
+    }
+    if(!strcmp(argv[1], "probe")){   /* probe GRAPH: lines of D values z_i on stdin -> F = f(e^z) prod e^z_i in double, |.| sum, and QREAL */
+        if(argc < 3) return 1;
+        const graph_t *g = find(argv[2]); if(!g){ fprintf(stderr, "no graph %s\n", argv[2]); return 1; }
+        double z[MAXD], sf[MAXD]; QREAL sq[MAXD];
+        for(;;){
+            int ok = 1; for(int i = 0; i < g->D && ok; i++) ok = scanf("%lf", &z[i]) == 1;
+            if(!ok) break;
+            double w = 1; for(int i = 0; i < g->D; i++){ sf[i] = exp(z[i]); w *= sf[i]; sq[i] = (QREAL)sf[i]; }
+            double ab; double v = g->fd(sf, &ab); QREAL abq; QREAL vq = g->fq(sq, &abq);
+            printf("%.17g %.6g %.17g %.6g\n", v*w, ab*w, (double)vq*w, (double)abq*w);
+        }
+        fflush(stdout); return 0;
     }
     if(!strcmp(argv[1], "compare")){
         if(argc < 4){ fprintf(stderr, "compare RESULTS_h RESULTS_h2   (two results files, e.g. h = 1.0 and 1.2)\n"); return 1; }

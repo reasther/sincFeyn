@@ -44,6 +44,7 @@ bin/sincqed list
 bin/sincqed run h N [eps] [top] GRAPH...     # GRAPH: name, Volkov string or group
 bin/sincqed compare RESULTS_h RESULTS_1.2h   # the realistic error: |S(h)-S(1.2h)|/3 + round
 bin/sincqed scale GRAPH                      # finiteness (scaling) test of the subtracted integrand
+bin/sincqed probe GRAPH < points             # F = f(e^z) prod e^z at each line of D values z_i (double, |.| sum, QREAL, |.| sum)
 ```
 
 - **Groups:** all2, all3, all4, q3, vp3, vp4, lbl, lbl4, pi6.
@@ -91,6 +92,7 @@ bin/sincqed scale GRAPH                      # finiteness (scaling) test of the 
 | `SINCQED_DUMP=prefix` | | write the evaluated points (coarse levels, and a 1-in-`SINCQED_DUMPSAMPLE` sample of the final level) |
 | `SINCQED_LOG`, `SINCQED_RESULTS` | sincqed.log, sincqed_results.txt | output files (`-` = none) |
 | `SINCQED_PROGRESS` | | seconds between progress lines |
+| `SINCQED_FACE` | | experimental: `GRAPH:u:a[:m[:W[:M]]][;...]` adds GRAPH_fd and GRAPH_ff, whose sums add up exactly to GRAPH's: the tail along the lattice direction u (decay rate a) summed in closed form (driver/face.c) |
 
 ## Run scripts
 

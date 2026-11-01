@@ -85,7 +85,7 @@ endif
 AR ?= ar
 
 B := build
-DRV := main io graphs lattice eval sum checkpoint
+DRV := main io graphs lattice eval sum checkpoint face
 DRVOBJ := $(DRV:%=$(B)/%.o)
 # keep main() in the ordinary text section, next to the driver's helpers (the arm64 branch range).
 # GCC on macOS still puts main in __text_startup after all the code, so the driver objects are
