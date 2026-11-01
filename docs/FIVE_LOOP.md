@@ -59,9 +59,12 @@ make -j2 CLASSES="g2 g5" QOPT=O0
 - Do not run two gen.py processes that both compute new Dirac tables: they race on
   `cache_dirac.pkl` (use `--cache-dir`, or one process).
 - D at five loops (from build.classes): 66 integrals at D = 9, 257 at 10, 638 at 11, 1125 at 12 and
-  1127 at 13. MAXD (driver/sq.h) stays 12 unless g5 is in CLASSES, when the Makefile sets 14. The packed 64-bit lattice key is used only for the one
-  dilation at the coarsest level (step 2h). At D = 13 it fits for h >= 2; below that the driver uses
-  the old sort-based dilate, which is cheap at the ~1e5 cells these runs keep.
+  1127 at 13. MAXD (driver/sq.h) stays 12 unless g5 is in CLASSES, when the Makefile sets 14. The packed lattice key (mixed radix, W = N at the
+  key's step) is used by the coarsest-level grow and dilation. It is 64 bits while W^D <= 2^63 and
+  128 bits beyond (driver/sumkey.h, included twice by sum.c); the 64-bit path gives the same points and
+  sums as before, and SINCQED_KEY128=1 forces the 128-bit one for testing. Before the 128-bit keys a
+  top = 0 run (no coarse level, so the grow runs at step h) needed N <= 37 for D = 12 and N <= 28 for
+  D = 13, and silently fell back to a full box scan otherwise.
 - A D = 13 node (g5_1221) is one 8.8 MB function, and gcc needed more than 14 GB to compile it even at
   -O1. `python3 tools/splitform.py FILE` cuts the FORM blocks into chunk functions of 4000
   statements. Two kernels then build in 8 minutes with 4.3 GB peak. The values are bit-identical:

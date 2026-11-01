@@ -121,6 +121,8 @@ $(B)/main.o: driver/main.c $(HDRS) $(B)/maxd.want | $(B)
 	$(XCC) $(OPT) $(OMP) $(MAINFLAGS) $(XLANG) $(MAXDFLAG) -Idriver -c -o $@ $<
 $(B)/%.o: driver/%.c $(HDRS) $(B)/maxd.want | $(B)
 	$(XCC) $(OPT) $(OMP) $(XLANG) $(MAXDFLAG) -Idriver -c -o $@ $<
+# sum.c includes sumkey.h twice (64- and 128-bit grid keys); not in HDRS, which the kernels depend on
+$(B)/sum.o $(B)/gpu/drv_sum.o: driver/sumkey.h
 # rewritten only when MAXDFLAG changes, so the driver is rebuilt when g5 enters or leaves CLASSES
 $(B)/maxd.want: FORCE | $(B)
 	@echo "$(MAXDFLAG)" | cmp -s - $@ || echo "$(MAXDFLAG)" > $@
