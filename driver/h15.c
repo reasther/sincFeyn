@@ -63,7 +63,94 @@ static res_t sumlist(const graph_t *g, const char *fn, double eps, double ref){
     say("# %s list %s: %ld points\n", g->name, fn, n);
     return R;
 }
+
+/* SINCQED_POLY=file: sum F over every lattice point k with L k <= c (file: "nf D" then nf rows of D ints and c).
+ * Enumerated coordinate by coordinate: the range of k_m is cut by every facet with the later coordinates relaxed
+ * to the bounding box, and the last coordinate's range is exact. */
+typedef struct { int nf; int *L; long *c; int (*buf)[MAXD]; long nb, n; double s, cc, a, un; long q2; } poly_t;
+static void pflush(poly_t *P){
+    double *vb = (double*)malloc(P->nb*sizeof(double)); long q2 = 0; double un = 0;
+    #pragma omp parallel for reduction(+:q2,un) schedule(dynamic,64)
+    for(long i = 0; i < P->nb; i++) vb[i] = leaf(P->buf[i], &q2, &un);
+    for(long i = 0; i < P->nb; i++){ double x = vb[i], t = P->s + x; if(fabs(P->s) >= fabs(x)) P->cc += (P->s - t) + x; else P->cc += (x - t) + P->s; P->s = t; P->a += fabs(x); }
+    P->q2 += q2; P->un += un; P->n += P->nb; P->nb = 0; free(vb);
+    progress("polytope", P->n, 0);
+}
+static long *RMIN;   /* RMIN[m*nf + f] = sum over i >= m of min(L_fi lo_i, L_fi hi_i) */
+static int LO[MAXD], HI[MAXD];
+static void pscan(poly_t *P, int *k, int m, const long *dot, long *work){
+    int nf = P->nf; long lo = LO[m], hi = HI[m];
+    for(int f = 0; f < nf; f++){
+        int l = P->L[f*DIM + m]; if(!l) { if(dot[f] + RMIN[(m + 1)*nf + f] > P->c[f]) return; continue; }
+        long r = P->c[f] - dot[f] - RMIN[(m + 1)*nf + f];      /* l k_m <= r */
+        if(l > 0){ long u = r >= 0 ? r/l : -((-r + l - 1)/l); if(u < hi) hi = u; }
+        else { long L2 = -l; long w = -r; long u = w >= 0 ? (w + L2 - 1)/L2 : -((-w)/L2); if(u > lo) lo = u; }   /* k_m >= ceil(-r/|l|) */
+        if(lo > hi) return;
+    }
+    long *nd = work;
+    for(long x = lo; x <= hi; x++){
+        k[m] = (int)x;
+        if(m == DIM - 1){ memcpy(P->buf[P->nb++], k, DIM*sizeof(int)); if(P->nb == (1 << 16)) pflush(P); continue; }
+        for(int f = 0; f < nf; f++) nd[f] = dot[f] + (long)P->L[f*DIM + m]*x;
+        pscan(P, k, m + 1, nd, work + nf);
+    }
+}
+
+/* BFS version (SINCQED_POLYBFS=1): layers of the lattice graph from 0; a layer's neighbours lie in the
+ * previous, current or next layer, so only two layers are kept in hash sets. */
+static void pbfs(poly_t *P){
+    int nf = P->nf;
+    int (*cur)[MAXD] = (int(*)[MAXD])calloc(1, sizeof *cur); long nc = 1;
+    hset_t hp = {0}, hc = {0}; { int z[MAXD] = {0}; hins(&hc, key(z)); }
+    memcpy(P->buf[P->nb++], cur[0], DIM*sizeof(int));
+    while(nc){
+        long cap = 1024, nn = 0; int (*nx)[MAXD] = (int(*)[MAXD])malloc(cap*sizeof *nx); hset_t hn = {0};
+        for(long i = 0; i < nc; i++) for(int d = 0; d < DIM; d++) for(int sg = -1; sg <= 1; sg += 2){
+            int q[MAXD]; memcpy(q, cur[i], sizeof q); q[d] += sg; if(abs(q[d]) > K) continue;
+            u128 y = key(q); if(hhas(&hp, y) || hhas(&hc, y)) continue;
+            if(!hins(&hn, y)) continue;
+            if(nn == cap){ cap *= 2; nx = (int(*)[MAXD])realloc(nx, cap*sizeof *nx); } memcpy(nx[nn++], q, sizeof *nx);
+        }
+        char *ok = (char*)malloc(nn ? nn : 1);
+        #pragma omp parallel for schedule(dynamic,256)
+        for(long i = 0; i < nn; i++){
+            int in = 1; for(int f = 0; f < nf && in; f++){ long t = 0; const int *l = P->L + f*DIM; for(int j = 0; j < DIM; j++) t += (long)l[j]*nx[i][j]; if(t > P->c[f]) in = 0; }
+            ok[i] = (char)in;
+        }
+        long m = 0; hset_t hk = {0};
+        for(long i = 0; i < nn; i++) if(ok[i]){ memcpy(nx[m++], nx[i], sizeof *nx); hins(&hk, key(nx[i])); }
+        free(ok); free(hn.k);
+        for(long i = 0; i < m; i++){ memcpy(P->buf[P->nb++], nx[i], DIM*sizeof(int)); if(P->nb == (1 << 16)) pflush(P); }
+        free(hp.k); hp = hc; hc = hk; free(cur); cur = nx; nc = m;
+    }
+    free(cur); free(hp.k); free(hc.k);
+}
+static res_t sumpoly(const graph_t *g, const char *fn, double eps, double ref){
+    res_t R; memset(&R, 0, sizeof R); double t0 = wtime();
+    FILE *fp = fopen(fn, "r"); if(!fp){ perror(fn); exit(1); }
+    poly_t P; memset(&P, 0, sizeof P); int d;
+    if(fscanf(fp, "%d %d", &P.nf, &d) != 2 || d != DIM){ fprintf(stderr, "SINCQED_POLY: bad header\n"); exit(1); }
+    P.L = (int*)malloc(P.nf*DIM*sizeof(int)); P.c = (long*)malloc(P.nf*sizeof(long));
+    for(int f = 0; f < P.nf; f++){ for(int i = 0; i < DIM; i++) if(fscanf(fp, "%d", &P.L[f*DIM + i]) != 1) exit(1); if(fscanf(fp, "%ld", &P.c[f]) != 1) exit(1); }
+    fclose(fp);
+    R.ref = ref; ABSERR = fmax(ABSERR0, ABREL*eps*ref);
+    P.buf = (int(*)[MAXD])malloc((1 << 16)*sizeof *P.buf);
+    long *dot = (long*)calloc(P.nf, sizeof(long)), *work = (long*)malloc((size_t)P.nf*(DIM*(K + 1) + 2)*sizeof(long));
+    /* box from the +-e_i facets */
+    for(int i = 0; i < DIM; i++){ LO[i] = -K; HI[i] = K; }
+    for(int f = 0; f < P.nf; f++){ int nz = 0, ii = -1; for(int i = 0; i < DIM; i++) if(P.L[f*DIM + i]){ nz++; ii = i; }
+        if(nz == 1){ int l = P.L[f*DIM + ii]; if(l == 1 && P.c[f] < HI[ii]) HI[ii] = (int)P.c[f]; if(l == -1 && -P.c[f] > LO[ii]) LO[ii] = (int)-P.c[f]; } }
+    RMIN = (long*)calloc((size_t)(DIM + 1)*P.nf, sizeof(long));
+    for(int m = DIM - 1; m >= 0; m--) for(int f = 0; f < P.nf; f++){ long l = P.L[f*DIM + m]; RMIN[m*P.nf + f] = RMIN[(m + 1)*P.nf + f] + (l > 0 ? l*LO[m] : l*HI[m]); }
+    int k[MAXD] = {0};
+    if(getenv("SINCQED_POLYBFS")) pbfs(&P); else pscan(&P, k, 0, dot, work); if(P.nb) pflush(&P);
+    R.S[0] = P.s + P.cc; R.Ah = P.a; R.nev = P.n; R.nq = P.q2; R.unres = sqrt(P.un); R.S[1] = R.S[2] = NAN; R.t = wtime() - t0;
+    say("# %s polytope %s: %d facets, %ld points\n", g->name, fn, P.nf, P.n);
+    free(P.buf); free(P.L); free(P.c); free(dot); free(work); free(RMIN);
+    return R;
+}
 res_t hsum15(const graph_t *g, double h, int N, double eps, double r){
+    { const char *fp = getenv("SINCQED_POLY"); if(fp && *fp) return sumpoly(g, fp, eps, r); }
     { const char *fl = getenv("SINCQED_PTS"); if(fl && *fl) return sumlist(g, fl, eps, r); }
     res_t R; memset(&R, 0, sizeof R); double t0 = wtime();
     int KC = (int)floor(K/1.5);
