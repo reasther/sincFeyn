@@ -45,6 +45,7 @@ static int symorbit(const int *k, int (*o)[MAXD]){    /* the distinct images of 
 }
 static double TQ[4], TGROW, TGE, TGS, TGT;              /* SINCQED_TIMING: seconds in the refinement's children / pack / eval / sum steps */
 static long DONE; static char STAGE[48];
+void progress_start(long done0); void progress_text(const char *stage, const char *text);   /* io.c (not in sq.h: the kernels depend on it) */
 
 /* SINCQED_HIST=prefix: per level, a histogram of the term sizes |f w| in half-decade bins (count,
  * signed and absolute contribution), written to <prefix>_<graph>.txt when the graph finishes */
@@ -164,7 +165,7 @@ static void hwrite(const graph_t *g, int top){
 static void scan(int lev, double thr, vec_t *keep, double *S, double *A, double *e1, double *e2, double *drop, long *nev, long *nq, double *un){
     int st = 1 << lev, W = 2*(K/st) + 1; long n = 1; for(int i = 0; i < DIM; i++) n *= W;
     double pw = pow(st, DIM), s = 0, a = 0, x1 = 0, x2 = 0, dr = 0; long ne = 0, q = 0; double u = 0;
-    DONE = 0; snprintf(STAGE, sizeof STAGE, "scan at step %dh", st);
+    DONE = 0; snprintf(STAGE, sizeof STAGE, "scan at step %dh", st); progress_start(0);
     #pragma omp parallel
     { vec_t loc = {0};
       #pragma omp for reduction(+:s,a,x1,x2,dr,ne,q,u) schedule(dynamic,256)
@@ -249,6 +250,19 @@ static long hfind128(const ks128_t *HK, long mask, u128_t y){
     return i;
 }
 
+/* the grow's progress line: its total is unknown until the frontier runs out, so it shows the layer (axis
+ * steps from z = 0), points evaluated and their rate, points kept, how far through this layer's frontier,
+ * and the sum over the layers finished so far */
+static const char *cnt(char *b, double x){
+    if(x >= 1e9) sprintf(b, "%.2fG", x*1e-9); else if(x >= 1e6) sprintf(b, "%.1fM", x*1e-6); else if(x >= 1e3) sprintf(b, "%.0fk", x*1e-3); else sprintf(b, "%.0f", x);
+    return b;
+}
+static void grow_progress(int lay, long done, double t0, long kept, long ldone, long ln, double s){
+    char tx[200], b1[16], b2[16], b3[16], b4[16]; double el = wtime() - t0;
+    snprintf(tx, sizeof tx, "layer %d: %s evaluated (%s/s), %s kept, %.0f%% of this layer's %s; sum so far %+.6f",
+             lay, cnt(b1, done), cnt(b2, el > 0 ? done/el : 0.0), cnt(b3, kept), ln > 0 ? 100.0*ldone/ln : 0.0, cnt(b4, ln), s);
+    progress_text(STAGE, tx);
+}
 /* the grow's evaluation (see grow in sumkey.h): GROWBATCH 1 sends each frontier through eval_batch (packed
  * SIMD kernel calls, same values; 0 = one leafx per point, as before); GROWSKIP = generations of |.|-sum
  * skipping allowed after a checked point at top = 0 (SINCQED_GROWSKIP, default 2; 0 = check every point) */
@@ -590,7 +604,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         int lev = C.lev, st = 1 << lev, st_ = st, last = (lev == 0); double pw = pow(st, DIM);
         double thr = eps*R->ref*1e-2;
         long B = MAXPTS >> DIM; if(B < 1) B = 1;
-        snprintf(STAGE, sizeof STAGE, "refine to step %dh", st);
+        snprintf(STAGE, sizeof STAGE, "refine to step %dh", st); progress_start(C.next);
         if(C.next == 0){ C.s = C.a = C.drop = C.u = 0; C.ne = C.q = 0; C.nxt.n = 0; }
         /* blocks of B cells, two in flight with the GPU: block j+1 is prepared and submitted before block j
          * is finished and summed, so that host work overlaps the GPU's evaluation of the other block.
