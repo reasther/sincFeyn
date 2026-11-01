@@ -545,7 +545,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
     memset(TQ, 0, sizeof TQ); TGROW = 0;
     ABSERR = ABSERR0;
     int resumed = ckpt_load(g, h, N, eps, top, &C);
-    ES1 = ES2 = 0; KC[0] = KC[1] = KC[2] = 0; ESOK = !resumed && DIM < MAXD;
+    ES1 = ES2 = 0; KC[0] = KC[1] = KC[2] = 0; ESOK = !resumed && DIM < MAXD && top > 0;   /* the shadow sums are kept by the refinement */
     if(resumed){
         ES1 = C.es[0]; ES2 = C.es[1]; PDS = C.es[2]; PDA = C.es[3]; PDN = C.es[4]; ESOK = C.esok;
         PSKIP = C.cnt[0]; ABSKIPPED = C.cnt[1]; ABMISS = C.cnt[2];

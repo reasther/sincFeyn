@@ -225,7 +225,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
       keep->n = m;
       /* shadow tiers: a run with eps*10^t keeps a point only if it reaches it from z = 0 through points with
        * |f| >= 10^t thr (the grow expands nothing else); flood-fill the kept set for t = 1, 2 */
-      if(DIM < MAXD && m){
+      if(DIM < MAXD && m && lev > 0){       /* top = 0 has no refinement to use the tiers */
           /* index of the kept points by packed key (built in parallel), then a serial flood fill that
            * compares 64-bit keys only */
           KT *KY = (KT*)malloc(m*sizeof(KT));
