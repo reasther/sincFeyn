@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 int GROW = 1;
+double GROWX = 1;   /* SINCQED_GROWX: the coarse grow walks on through points down to (keep threshold)/GROWX, keeping only those above it */
 /* Compensated (Neumaier) sums for S and the eps shadow.  A plain running double sum rounds away terms
  * below half an ulp of the total, and at small eps most final-level terms are that small: g3_20 at
  * h 1.5 N 33 eps 1e-11 lost 1.7e-10 that way, and at h 0.7 eps 1e-15 its folded and unfolded plain
@@ -343,10 +344,11 @@ static int grow(int lev, double eps_rel, vec_t *keep, double *S, double *A, doub
         for(long i = 0; i < fr.n; i++){
             int k[MAXD], mx = 0; ptget(&fr.p[i], k); for(int d = 0; d < DIM; d++) if(abs(k[d]) > mx) mx = abs(k[d]);
             if(mx == K) x1 += fabs(v[i])*pw; else if(mx == K - st) x2 += fabs(v[i])*pw;
+            if(!(fabs(v[i]) >= thr/GROWX)){ dr += fabs(v[i])*pw; continue; }
+            kj[nk++] = i;                           /* explored further (SINCQED_GROWX > 1 explores below the keep threshold) */
             if(!(fabs(v[i]) >= thr)){ dr += fabs(v[i])*pw; continue; }
             if(keep->n >= nkv){ nkv = 2*nkv + 1024; kv = (double*)realloc(kv, nkv*sizeof(double)); }
             kv[keep->n] = fabs(v[i]); push(keep, k); if(ABSKIP && DIM < MAXD) keep->p[keep->n-1].k[PFLAG] = !nr[i];
-            kj[nk++] = i;
         }
         /* the axis neighbours not seen before go to the next frontier, in the order of a serial pass over
          * (kept point, axis, sign): all candidates claim their slot in parallel (the lowest id wins), then
@@ -667,8 +669,10 @@ static void csave(const graph_t *g, double h, int N, double eps, int top, ckpt_t
 }
 
 res_t hsum(const graph_t *g, double h, int N, double eps, int top){
+    { const char *e = getenv("SINCQED_C15"); if(e && *e){ res_t hsum15(const graph_t*, double, int, double, double); return hsum15(g, h, N, eps, atof(e)); } }
     ckpt_t C; memset(&C, 0, sizeof C); C.vsz = sizeof(vslot_t);
     if(HON < 0){ const char *e = getenv("SINCQED_HIST"); HON = e && *e; }
+    { const char *e = getenv("SINCQED_GROWX"); if(e) GROWX = atof(e); if(!(GROWX >= 1)) GROWX = 1; }
     memset(HC, 0, sizeof HC); memset(HS_, 0, sizeof HS_); memset(HA, 0, sizeof HA); memset(RC, 0, sizeof RC); memset(RS, 0, sizeof RS); memset(RA, 0, sizeof RA);
     if(PRED < 0){ const char *e = getenv("SINCQED_PREDICT"); PRED = e ? atof(e) : 0; }
     if(VCAP){ memset(VS, 0, VCAP*sizeof(vslot_t)); VN = 0; } PSKIP = 0; PDS = PDA = PDN = 0;
