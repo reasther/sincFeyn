@@ -150,6 +150,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
     #define KEY(k) ({ KT _y = 1; for(int _i = 0; _i < DIM; _i++) _y = _y*W + (KT)((k)[_i]/st + K/st); _y; })
     vec_t fr = {0}, nx = {0};
     double pw = pow(st, DIM), a = 0, x1 = 0, x2 = 0, dr = 0, u = 0; long ne = 0, q = 0; ksum_t ks = {0, 0};
+    GSHS = 0; GSHN = 0;
     int k0[MAXD] = {0}; push(&fr, k0);
     double *kv = NULL; long nkv = 0;   /* |f| of the kept points, for the final threshold */
     OW(SFX(hslots)(HS, cap - 1, KEY(k0), &nh, 1)) = UINT32_MAX;
@@ -213,7 +214,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         for(long i = 0; i < fr.n; i++){
             double w = fabs(v[i])*pw;
             if(cl[i] & 2) x1 += w; else if(cl[i] & 4) x2 += w;
-            if(!(cl[i] & 1)) dr += w;
+            if(!(cl[i] & 1)){ dr += w; GSHS += v[i]*pw; GSHN++; }
         }
         for(int t = 0; t < nt; t++) tc[t + 1] += tc[t];
         long nk = tc[nt], kb = keep->n;

@@ -28,7 +28,8 @@
  *   SINCQED_CKPT     seconds between checkpoints (default 600, 0 = off); SINCQED_CKPT_DIR (default .)
  *   SINCQED_LOG, SINCQED_RESULTS, SINCQED_PROGRESS: log file, results file ("-" = none), progress interval
  *
- * Errors: disc ~ 2|S_2h-S_h|^2/sum|f| (a loose bound); pruned = weight dropped at every level;
+ * Errors: disc ~ 2|S_2h-S_h|^2/sum|f| (a loose bound); pruned = weight dropped at every level (at top = 0,
+ * where every evaluated point is summed, |signed sum| of the grow's never-expanded shell instead);
  * trunc = outer shell of the top-level scan continued geometrically; round = eps*sum|terms| of the
  * points still unresolved after the high-precision recomputation, in quadrature.  The realistic
  * error is |S(h)-S(1.2h)|/3 + round (sincqed compare).
@@ -45,8 +46,12 @@ static void run_graph(const graph_t *g, double h, int N, double eps, int top, do
     double w = g->weight, v = w*R.S[0], d2 = fabs(R.S[1]-R.S[0]);
     double disc = R.Ah > 0 ? 2*d2*d2/R.Ah : 0;
     double err = w*(disc + R.prune + R.trunc + R.unres);
-    say("%-7s %-22s D=%d w=%d  %+.12f  err %.2e (disc %.1e prune %.1e trunc %.1e round %.1e)  |S2h-Sh| %.1e  S_4h %+.6f  evals %ld quad %ld kept %ld  %.1fs",
-           g->name, g->volkov, g->D, g->weight, v, err, w*disc, w*R.prune, w*R.trunc, w*R.unres, w*d2, w*R.S[2], R.nev, R.nq, R.kept_top, R.t);
+    /* S_2h and S_4h exist only when the run had those levels (top >= 1, top >= 2) */
+    char lv[64] = "";
+    if(isfinite(R.S[1])) snprintf(lv, sizeof lv, "  |S2h-Sh| %.1e", w*d2);
+    if(isfinite(R.S[2])) snprintf(lv + strlen(lv), sizeof lv - strlen(lv), "  S_4h %+.6f", w*R.S[2]);
+    say("%-7s %-22s D=%d w=%d  %+.12f  err %.2e (disc %.1e prune %.1e trunc %.1e round %.1e)%s  evals %ld quad %ld kept %ld  %.1fs",
+           g->name, g->volkov, g->D, g->weight, v, err, w*disc, w*R.prune, w*R.trunc, w*R.unres, lv, R.nev, R.nq, R.kept_top, R.t);
     const ref_t *r = findref(g->volkov);
     if(r) say("  ref %+.12f (%s) diff %+.2e", r->val, r->src, v - r->val);
     say("\n");
@@ -59,8 +64,10 @@ static void run_graph(const graph_t *g, double h, int N, double eps, int top, do
     }
     if(ABCHECK) say("# %s: SINCQED_ABCHECK: %ld of the skipped points would have needed the fallback\n", g->name, ABMISS);
     if(RESF){
-        fprintf(RESF, "%-8s %-28s %d %d %d %5.3f %4d %8.1e %d %+.15e %.3e %.2e %.2e %.2e %.2e %+.8e %12ld %9.1f",
-                g->name, g->volkov, g->L, g->D, g->weight, h, 2*K+1, eps, top, v, err, w*disc, w*R.prune, w*R.trunc, w*R.unres, w*R.S[1], R.nev, R.t);
+        fprintf(RESF, "%-8s %-28s %d %d %d %5.3f %4d %8.1e %d %+.15e %.3e %.2e %.2e %.2e %.2e ",
+                g->name, g->volkov, g->L, g->D, g->weight, h, 2*K+1, eps, top, v, err, w*disc, w*R.prune, w*R.trunc, w*R.unres);
+        if(isfinite(R.S[1])) fprintf(RESF, "%+.8e", w*R.S[1]); else fprintf(RESF, "%15s", "-");    /* no 2h level at top = 0 */
+        fprintf(RESF, " %12ld %9.1f", R.nev, R.t);
         if(r) fprintf(RESF, " %+.15e %+.3e", r->val, v - r->val); else fprintf(RESF, " %22s %10s", "-", "-");
         fprintf(RESF, "\n"); fflush(RESF);
     }

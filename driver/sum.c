@@ -272,6 +272,8 @@ static void grow_progress(int lay, long done, double t0, long kept, long ldone, 
  * SIMD kernel calls, same values; 0 = one leafx per point, as before); GROWSKIP = generations of |.|-sum
  * skipping allowed after a checked point at top = 0 (SINCQED_GROWSKIP, default 2; 0 = check every point) */
 static int GROWBATCH = 1, GROWSKIP = 2;
+/* the grow's boundary shell: points evaluated and summed but below the threshold, so never expanded (signed sum, count) */
+static double GSHS; static long GSHN;
 /* the grow's hash of evaluated points doubles when it would pass this fraction full (SINCQED_GROWLOAD,
  * default 0.7; was 0.5).  Higher saves memory at some probing cost; values do not depend on it */
 static double GROWLOAD = 0.7;
@@ -590,6 +592,14 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
             scan(top, eps*R->ref*1e-3, &C.cur, &S, &A, &e1, &e2, &dr, &R->nev, &R->nq, &R->unres);
         } else R->ref = A;
         R->prune = dr;
+        if(GROW && top == 0 && GSHN){
+            /* top = 0: every evaluated point is in the sum, so dr (sum |f w| of the points below the threshold) is
+             * not lost weight.  What is missing is the next shell out, beyond these never-expanded points; the shell's
+             * own signed sum is the estimate (g5_3086 h 2.4 1e-6: shell -2.0e-3, change to 1e-7 -7.5e-4) */
+            say("# %s: grow shell (evaluated and summed, not expanded): %ld points, sum %+.3e, sum|.| %.3e; prune = |shell sum|, an estimate of what lies beyond it\n",
+                g->name, GSHN, g->weight*GSHS, g->weight*dr);
+            R->prune = fabs(GSHS);
+        }
         if(A == 0){ free(C.cur.p); R->t = wtime() - t0; if(DUMPF){ fclose(DUMPF); DUMPF = NULL; } return *R; }     /* integrand identically zero (e.g. a vanishing VP family) */
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }
         C.nl = 0; C.Slev[C.nl++] = S;
