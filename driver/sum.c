@@ -8,6 +8,7 @@
  * state is checkpointed between blocks (checkpoint.c). */
 #include "sq.h"
 #include <stdint.h>
+#include <limits.h>
 
 int GROW = 1;
 /* Compensated (Neumaier) sums for S and the eps extrapolation (the shadow tiers).  A plain running double sum rounds away terms
@@ -274,6 +275,8 @@ static void grow_progress(int lay, long done, double t0, long kept, long ldone, 
 static int GROWBATCH = 1, GROWSKIP = 2;
 /* the grow's boundary shell: points evaluated and summed but below the threshold, so never expanded (signed sum, count) */
 static double GSHS; static long GSHN;
+static long BTB, BTPEAK, BTALL, BTUNS; static int BTMARGIN = 2;   /* grow boundary tables: bytes live now, peak live, total ever allocated;
+   candidates that looked below the freed tables; frontiers kept below the provable cut (SINCQED_BTMARGIN) */
 /* the grow's hash of evaluated points doubles when it would pass this fraction full (SINCQED_GROWLOAD,
  * default 0.7; was 0.5).  Higher saves memory at some probing cost; values do not depend on it */
 static double GROWLOAD = 0.7;
@@ -329,6 +332,7 @@ static int grow(int lev, double eps_rel, vec_t *keep, double *S, double *A, doub
     if(!init){ init = 1; const char *e;
         if((e = getenv("SINCQED_GROWBATCH"))) GROWBATCH = atoi(e);
         if((e = getenv("SINCQED_GROWSKIP"))) GROWSKIP = atoi(e);
+        if((e = getenv("SINCQED_BTMARGIN"))) BTMARGIN = atoi(e);
         if((e = getenv("SINCQED_GROWLOAD"))){ GROWLOAD = atof(e); if(!(GROWLOAD >= 0.3 && GROWLOAD <= 0.9)) GROWLOAD = 0.7; } }
     if(!key128() && grow64(lev, eps_rel, keep, S, A, e1, e2, drop, nev, nq, un)) return 1;
     return grow128(lev, eps_rel, keep, S, A, e1, e2, drop, nev, nq, un);
@@ -599,6 +603,10 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
             say("# %s: grow shell (evaluated and summed, not expanded): %ld points, sum %+.3e, sum|.| %.3e; prune = |shell sum|, an estimate of what lies beyond it\n",
                 g->name, GSHN, g->weight*GSHS, g->weight*dr);
             R->prune = fabs(GSHS);
+        }
+        if(GROW && BTALL){
+            say("# %s: grow boundary tables: peak %.2f GB live (%.2f GB if none were freed)\n", g->name, BTPEAK/1e9, BTALL/1e9);
+            if(BTUNS) say("# %s: WARNING %ld grow candidates fell below the freed boundary tables, so a boundary point may be counted twice; rerun with SINCQED_KEEPBT=1 or a larger SINCQED_BTMARGIN\n", g->name, BTUNS);
         }
         if(A == 0){ free(C.cur.p); R->t = wtime() - t0; if(DUMPF){ fclose(DUMPF); DUMPF = NULL; } return *R; }     /* integrand identically zero (e.g. a vanishing VP family) */
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }
