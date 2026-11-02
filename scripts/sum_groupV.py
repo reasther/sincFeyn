@@ -4,7 +4,7 @@
     python3 scripts/sum_groupV.py RESULTS LOG
 
 RESULTS is the sincqed results file, LOG the matching sincqed.log.  For each g4 graph it takes the
-value (mirror weight included) and adds the pruning loss left at eps from the graph's "eps shadow"
+value (mirror weight included) and adds the pruning loss left at eps from the graph's "eps extrapolation" (older logs: "eps shadow")
 log line.  If a graph appears more than once, the run at the smallest eps is used.  Prints the
 number of graphs, the raw sum, the summed shadow correction and the corrected total, against
 Laporta's -2.176866027739 (arXiv:1704.06996, sets 1-6)."""
@@ -21,7 +21,7 @@ for l in open(sys.argv[1]):
     if t[0] not in res or eps <= res[t[0]][0]: res[t[0]] = (eps, float(t[i]))
 shadow = {}
 for l in open(sys.argv[2]):
-    m = re.match(r'# (g4_\d+) eps shadow: .*pruning loss left at eps ~ ([+-][\d.e+-]+)', l)
+    m = re.match(r'# (g4_\d+) eps (?:shadow|extrapolation): .*pruning loss left at eps ~ ([+-][\d.e+-]+)', l)
     if m: shadow[m.group(1)] = float(m.group(2))     # the last line of a graph wins (its final run)
 raw = sum(v for e, v in res.values())
 sh = sum(shadow.get(g, 0.0) for g in res)

@@ -123,10 +123,10 @@ summary(){
             awk -v hc="$hc" -v g="$g" -v x="$x" -v rf="$rf" 'BEGIN{OFS="\t"} $1 == g {
                 # the volkov string has spaces, so count fields from the end of the line:
                 # L D w h N eps top value err disc prune trunc round S_2h evals time_s ref diff
-                v = $(NF-10); s2 = $(NF-4); d = s2 - v; if(d < 0) d = -d
+                v = $(NF-10); s2 = $(NF-4); d = s2 - v; if(d < 0) d = -d; ds = s2 == "-" ? "-" : sprintf("%.3e", d)   # "-": no 2h level (top = 0)
                 r = $(NF-1); df = $NF
                 if(rf != "" && (r == "-" || g ~ /^g3_/)){ r = sprintf("%.12e", rf); df = sprintf("%+.3e", v - rf) }   # scripts/refs.tsv
-                print g, x, $(NF-17), $(NF-16), $(NF-15), $(NF-14), $(NF-12), v, $(NF-9), $(NF-8), $(NF-7), sprintf("%.3e", d), $(NF-3), $(NF-2), r, df, hc }' "$f"
+                print g, x, $(NF-17), $(NF-16), $(NF-15), $(NF-14), $(NF-12), v, $(NF-9), $(NF-8), $(NF-7), ds, $(NF-3), $(NF-2), r, df, hc }' "$f"
             done
         done
     done < "$LIST" >> "$S"

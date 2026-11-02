@@ -108,7 +108,7 @@ python3 scripts/sum_groupV.py sincqed_results_groupV_h1.5.txt sincqed_groupV_h1.
 ```
 
 The total is the sum over the 269 graphs of the value plus the pruning loss left at eps, which
-each graph's `eps shadow` log line reports. At h = 1.5 it is -2.175105, +0.0018 from Laporta's
+each graph's `eps extrapolation` log line reports. At h = 1.5 it is -2.175105, +0.0018 from Laporta's
 -2.176866.
 
 The h = 1.3 point was run on an NVIDIA A100:

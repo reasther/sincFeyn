@@ -130,16 +130,16 @@ log.
 | column | meaning |
 |--------|---------|
 | disc  | 2·\|S_2h − S_h\|² / Σ\|terms at h\|; overestimates at coarse h. The realistic error is \|S(h) − S(1.2h)\|/3 (`sincqed compare`). |
-| prune | weight dropped below the keep threshold, summed over every level; understates the true loss at four loops, so use the eps shadow |
+| prune | weight dropped below the keep threshold, summed over every level; understates the true loss at four loops, so use the eps extrapolation |
 | trunc | outer shell of the window, extrapolated geometrically from the last two shells |
 | round | points that cancel beyond the high-precision type, in quadrature |
 | err   | disc + prune + trunc + round |
 
-**The eps shadow.** Each kept point carries a tier saying whether it would still have been kept
+**The eps extrapolation (shadow tiers).** Each kept point carries a tier saying whether it would still have been kept
 with eps raised by 10 or 100, and the final level is summed per tier. From the two differences
 the log estimates the pruning loss still left at eps, at no extra cost:
 
-    # g2_02 eps shadow: eps*10 would change the value by +3.968e-08, eps*100 by a further +3.368e-07 (ratio 8.49); pruning loss left at eps ~ -5.30e-09 (add to the value)
+    # g2_02 eps extrapolation: eps*10 would change the value by +3.968e-08, eps*100 by a further +3.368e-07 (ratio 8.49); pruning loss left at eps ~ -5.30e-09 (add to the value)
 
 **Example (reading a results line).** g2_02 (the crossed ladder) at h = 1.5, N = 65,
 eps = 1e-8:

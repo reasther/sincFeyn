@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 int GROW = 1;
-/* Compensated (Neumaier) sums for S and the eps shadow.  A plain running double sum rounds away terms
+/* Compensated (Neumaier) sums for S and the eps extrapolation (the shadow tiers).  A plain running double sum rounds away terms
  * below half an ulp of the total, and at small eps most final-level terms are that small: g3_20 at
  * h 1.5 N 33 eps 1e-11 lost 1.7e-10 that way, and at h 0.7 eps 1e-15 its folded and unfolded plain
  * sums differed by 8e-8.  Each block is summed compensated, and the block sums are added compensated. */
@@ -272,6 +272,8 @@ static void grow_progress(int lay, long done, double t0, long kept, long ldone, 
  * SIMD kernel calls, same values; 0 = one leafx per point, as before); GROWSKIP = generations of |.|-sum
  * skipping allowed after a checked point at top = 0 (SINCQED_GROWSKIP, default 2; 0 = check every point) */
 static int GROWBATCH = 1, GROWSKIP = 2;
+/* the grow's boundary shell: points evaluated and summed but below the threshold, so never expanded (signed sum, count) */
+static double GSHS; static long GSHN;
 /* the grow's hash of evaluated points doubles when it would pass this fraction full (SINCQED_GROWLOAD,
  * default 0.7; was 0.5).  Higher saves memory at some probing cost; values do not depend on it */
 static double GROWLOAD = 0.7;
@@ -590,6 +592,14 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
             scan(top, eps*R->ref*1e-3, &C.cur, &S, &A, &e1, &e2, &dr, &R->nev, &R->nq, &R->unres);
         } else R->ref = A;
         R->prune = dr;
+        if(GROW && top == 0 && GSHN){
+            /* top = 0: every evaluated point is in the sum, so dr (sum |f w| of the points below the threshold) is
+             * not lost weight.  What is missing is the next shell out, beyond these never-expanded points; the shell's
+             * own signed sum is the estimate (g5_3086 h 2.4 1e-6: shell -2.0e-3, change to 1e-7 -7.5e-4) */
+            say("# %s: grow shell (evaluated and summed, not expanded): %ld points, sum %+.3e, sum|.| %.3e; prune = |shell sum|, an estimate of what lies beyond it\n",
+                g->name, GSHN, g->weight*GSHS, g->weight*dr);
+            R->prune = fabs(GSHS);
+        }
         if(A == 0){ free(C.cur.p); R->t = wtime() - t0; if(DUMPF){ fclose(DUMPF); DUMPF = NULL; } return *R; }     /* integrand identically zero (e.g. a vanishing VP family) */
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }
         C.nl = 0; C.Slev[C.nl++] = S;
@@ -707,7 +717,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
     if(getenv("SINCQED_TIMING")) say("# %s timing (refinement, host thread): prepare %.1fs  wait+check %.1fs  sum %.1fs\n", g->name, TQ[0], TQ[2], TQ[3]);
     if(PRED > 0) say("# %s predictor alpha %g: skipped %ld final-level points\n", g->name, PRED, PSKIP);
     if(ESOK){ double w = g->weight, d1 = w*(R->S[0] - ES1), d2 = w*(ES1 - ES2), r = d1 != 0 ? d2/d1 : 0;   /* weighted, like the results */
-        say("# %s eps shadow: eps*10 would change the value by %+.3e, eps*100 by a further %+.3e (ratio %.2f)", g->name, -d1, -d2, r);
+        say("# %s eps extrapolation: eps*10 would change the value by %+.3e, eps*100 by a further %+.3e (ratio %.2f)", g->name, -d1, -d2, r);
         if(r > 1.5) say("; pruning loss left at eps ~ %+.2e (add to the value)\n", d1/(r-1)); else say("\n"); }
     if(PRED > 0 && PDIAG) say("# %s predictor check: skipped points sum %+.3e, sum|.| %.3e, %.0f of them above thr\n", g->name, PDS, PDA, PDN);
     hwrite(g, top);
