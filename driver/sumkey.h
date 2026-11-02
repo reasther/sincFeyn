@@ -144,7 +144,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
     long cap = 1 << 20; KS *HS = (KS*)aligned_alloc(64, 2*cap*sizeof(KS)); long nh = 0;
     memset(HS, 0, 2*cap*sizeof(KS));
     #define OW(q) (*(unsigned*)&HS[2*(q) + 1])
-    KS **BT = NULL; long *BM = NULL; int nbt = 0;     /* boundary of frontier L: table BT[L], mask BM[L] (NULL if none) */
+    KS **BT = NULL; long *BM = NULL; int nbt = 0; long BTLO = 0; BTB = BTPEAK = BTALL = 0; BTUNS = 0;     /* boundary of frontier L: table BT[L], mask BM[L] (NULL if none) */
     vec_t pk = {0};
     int store = lev > 0;     /* top = 0: nothing refines the kept points, so only their |f| is kept (final threshold) */
     #define KEY(k) ({ KT _y = 1; for(int _i = 0; _i < DIM; _i++) _y = _y*W + (KT)((k)[_i]/st + K/st); _y; })
@@ -237,6 +237,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
           if(nbd > 0){
               long bc = 64; while(nbd > GROWLOAD*bc) bc *= 2;
               KS *B = (KS*)calloc(bc, sizeof(KS)); long nb_ = 0; BT[lay] = B; BM[lay] = bc - 1;
+              BTB += bc*(long)sizeof(KS); if(BTB > BTPEAK) BTPEAK = BTB; BTALL += bc*(long)sizeof(KS);
               #pragma omp parallel for schedule(static) reduction(+:nb_)
               for(long b = 0; b < (fr.n + 31)/32; b++){           /* blocks of 32: keys and prefetches first, then the inserts */
                   KT yy[32]; int m = 0;
@@ -278,7 +279,8 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
              * then the lookups (the hash probes are cache misses; this keeps many of them in flight) */
             enum { QB = 8 };
             long nbk = (c1 - c0 + QB - 1)/QB;
-            #pragma omp parallel for schedule(static) reduction(+:nh)
+            long nus = 0;
+            #pragma omp parallel for schedule(static) reduction(+:nh,nus)
             for(long bk = 0; bk < nbk; bk++){
                 long j0 = c0 + bk*QB, j1 = j0 + QB < c1 ? j0 + QB : c1;
                 KT yy[QB*2*MAXD]; int ny[QB*2*MAXD];
@@ -300,6 +302,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
                     for(int c = 0; c < 2*DIM; c++){
                         if(!ow[c]) continue;
                         int t = (j - j0)*2*DIM + c, hit = 0; KT y = yy[t];
+                        if(ny[t] < BTLO) nus++;          /* might repeat a boundary point in a freed table */
                         for(int l = ny[t]; l < lay && !hit; l += 2) hit = BT[l] && SFX(hhas)(BT[l], BM[l], y);
                         if(hit){ ow[c] = 0; continue; }     /* a boundary point of an earlier frontier */
                         unsigned cl = UINT32_MAX - 1 - (unsigned)((j - c0)*2*DIM + c);
@@ -309,6 +312,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
                     }
                 }
             }
+            BTUNS += nus;
             long nt = omp_get_max_threads(), *cnt = (long*)calloc(nt + 1, sizeof(long));
             #pragma omp parallel num_threads(nt)
             { int tid = omp_get_thread_num(); long n = 0;
@@ -346,6 +350,19 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         #pragma omp parallel for schedule(static)
         for(long j = 0; j < nk; j++) pk.p[j] = fr.p[kj[j]];
         pk.n = nk;
+        /* boundary tables the next frontier's candidates cannot hit: each steps from a kept point of nx, so its
+         * norm is at least min norm(nx) - 1, and it looks only at BT[l] for l >= its norm.  A later frontier
+         * could in principle step further inward, so every candidate whose norm falls below the freed tables
+         * is counted (BTUNS) and reported: 0 means the run is exactly the one with every table kept.  Keeps
+         * only the last few frontiers' boundary in memory (the boundary is ~90% of the evaluations at D >= 9) */
+        if(nx.n && !getenv("SINCQED_KEEPBT")){
+            long mn = LONG_MAX;
+            #pragma omp parallel for schedule(static) reduction(min:mn)
+            for(long i = 0; i < nx.n; i++){ long n = 0; for(int d = 0; d < DIM; d++) n += abs(nx.p[i].k[d]); n /= st; if(n < mn) mn = n; }
+            mn -= BTMARGIN;                  /* the grow is nearly monotone in norm; a margin of frontiers kept anyway */
+            for(long l = BTLO; l < mn - 1 && l <= lay; l++) if(BT[l]){ BTB -= (BM[l] + 1)*(long)sizeof(KS); free(BT[l]); BT[l] = NULL; }
+            if(mn - 1 > BTLO) BTLO = mn - 1 < lay + 1 ? mn - 1 : lay + 1;
+        }
         free(v); free(nr); free(sk);
         vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1; lay++;
     }
