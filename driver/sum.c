@@ -275,7 +275,7 @@ static void grow_progress(int lay, long done, double t0, long kept, long ldone, 
 static int GROWBATCH = 1, GROWSKIP = 2;
 /* the grow's boundary shell: points evaluated and summed but below the threshold, so never expanded (signed sum, count) */
 static double GSHS; static long GSHN;
-static long BTB, BTPEAK, BTALL, BTUNS; static int BTMARGIN = 2;   /* grow boundary tables: bytes live now, peak live, total ever allocated;
+static long BTB, BTPEAK, BTALL, BTUNS; static double BTBOUND; static int BTMARGIN = 2;   /* grow boundary tables: bytes live now, peak live, total ever allocated;
    candidates that looked below the freed tables; frontiers kept below the provable cut (SINCQED_BTMARGIN) */
 /* the grow's hash of evaluated points doubles when it would pass this fraction full (SINCQED_GROWLOAD,
  * default 0.7; was 0.5).  Higher saves memory at some probing cost; values do not depend on it */
@@ -606,7 +606,9 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         }
         if(GROW && BTALL){
             say("# %s: grow boundary tables: peak %.2f GB live (%.2f GB if none were freed)\n", g->name, BTPEAK/1e9, BTALL/1e9);
-            if(BTUNS) say("# %s: WARNING %ld grow candidates fell below the freed boundary tables, so a boundary point may be counted twice; rerun with SINCQED_KEEPBT=1 or a larger SINCQED_BTMARGIN\n", g->name, BTUNS);
+            /* such a candidate may repeat a boundary point of a freed table: evaluated and summed twice, but it is
+             * below the keep threshold, so not expanded, and adds less than the threshold: |error| < count*thr */
+            if(BTUNS) say("# %s: %ld grow candidates fell below the freed boundary tables; any boundary point among them is summed twice, which moves the value by less than %.1e (bit-identical runs: SINCQED_KEEPBT=1)\n", g->name, BTUNS, g->weight*BTBOUND);
         }
         if(A == 0){ free(C.cur.p); R->t = wtime() - t0; if(DUMPF){ fclose(DUMPF); DUMPF = NULL; } return *R; }     /* integrand identically zero (e.g. a vanishing VP family) */
         { double r = e2 > 0 ? e1/e2 : 0; R->trunc = (r > 0 && r < 1) ? e1*r/(1-r) : e1; }

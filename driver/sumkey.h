@@ -367,6 +367,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         vec_t t = fr; fr = nx; nx = t; TGS += wtime() - te1; lay++;
     }
     TGROW = wtime() - tw0; double tt0 = wtime();
+    BTBOUND = BTUNS*eps_rel*a*pw;     /* a repeated boundary point is below the threshold, so it adds < thr*pw (and is not expanded) */
     /* the running threshold was lower early on: re-apply the final one */
     { double thr = eps_rel*a; long m = 0;
       for(long i = 0; i < keep->n; i++){ if(kv[i] >= thr){ kv[m] = kv[i]; if(store) keep->p[m] = keep->p[i]; m++; } else dr += kv[i]*pw; }
