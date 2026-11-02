@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 int GROW = 1;
-/* Compensated (Neumaier) sums for S and the eps shadow.  A plain running double sum rounds away terms
+/* Compensated (Neumaier) sums for S and the eps extrapolation (the shadow tiers).  A plain running double sum rounds away terms
  * below half an ulp of the total, and at small eps most final-level terms are that small: g3_20 at
  * h 1.5 N 33 eps 1e-11 lost 1.7e-10 that way, and at h 0.7 eps 1e-15 its folded and unfolded plain
  * sums differed by 8e-8.  Each block is summed compensated, and the block sums are added compensated. */
@@ -717,7 +717,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
     if(getenv("SINCQED_TIMING")) say("# %s timing (refinement, host thread): prepare %.1fs  wait+check %.1fs  sum %.1fs\n", g->name, TQ[0], TQ[2], TQ[3]);
     if(PRED > 0) say("# %s predictor alpha %g: skipped %ld final-level points\n", g->name, PRED, PSKIP);
     if(ESOK){ double w = g->weight, d1 = w*(R->S[0] - ES1), d2 = w*(ES1 - ES2), r = d1 != 0 ? d2/d1 : 0;   /* weighted, like the results */
-        say("# %s eps shadow: eps*10 would change the value by %+.3e, eps*100 by a further %+.3e (ratio %.2f)", g->name, -d1, -d2, r);
+        say("# %s eps extrapolation: eps*10 would change the value by %+.3e, eps*100 by a further %+.3e (ratio %.2f)", g->name, -d1, -d2, r);
         if(r > 1.5) say("; pruning loss left at eps ~ %+.2e (add to the value)\n", d1/(r-1)); else say("\n"); }
     if(PRED > 0 && PDIAG) say("# %s predictor check: skipped points sum %+.3e, sum|.| %.3e, %.0f of them above thr\n", g->name, PDS, PDA, PDN);
     hwrite(g, top);

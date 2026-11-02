@@ -71,7 +71,7 @@ bin/sincqed scale GRAPH                      # finiteness (scaling) test of the 
   one-signed and adds up across graphs, and it grows as h shrinks, so lower eps with h: two loops
   1e-15 to 1e-20, three loops 1e-11 to 1e-15, four loops 1e-10 to 1e-11 at h = 1.5 with
   `SINCQED_PREDICT=1`.
-- **Judging convergence.** Compare runs at two step sizes. The eps shadow line in the log gives
+- **Judging convergence.** Compare runs at two step sizes. The eps extrapolation line in the log gives
   the eps dependence of each graph from a single run, and an estimate of the pruning loss still
   left.
 
