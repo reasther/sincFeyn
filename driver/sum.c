@@ -43,7 +43,7 @@ static int symorbit(const int *k, int (*o)[MAXD]){    /* the distinct images of 
     }
     return n;
 }
-static double TQ[4], TGROW, TGE, TGS, TGT;              /* SINCQED_TIMING: seconds in the refinement's children / pack / eval / sum steps */
+static double TQ[4], TGROW, TGE, TGS, TGT, TGB[3];              /* SINCQED_TIMING: seconds in the refinement's children / pack / eval / sum steps */
 static long DONE; static char STAGE[48];
 void progress_start(long done0); void progress_text(const char *stage, const char *text);   /* io.c (not in sq.h: the kernels depend on it) */
 
@@ -204,17 +204,20 @@ static void dilate_old(vec_t *cur, int st){
 /* 64-bit keys: the slot is the key itself (0 = empty) */
 typedef unsigned long long u64_t;
 typedef unsigned __int128 u128_t;
-static long hslot64(u64_t *HK, long mask, u64_t y, long *cnt){
+/* hslots: slot i is HK[i << sh] (sh = 1: the grow's table, each key followed by its claim word; its callers
+ * keep a per-thread count, so *cnt is bumped without a locked add) */
+static inline long hslots64(u64_t *HK, long mask, u64_t y, long *cnt, int sh){
     long i = (long)((y*0x9E3779B97F4A7C15ULL) >> 21) & mask;
     for(;;){
-        u64_t c = __atomic_load_n(&HK[i], __ATOMIC_RELAXED);
+        u64_t c = __atomic_load_n(&HK[i << sh], __ATOMIC_RELAXED);
         if(c == y) return i;
         if(!c){ u64_t z = 0;
-            if(__atomic_compare_exchange_n(&HK[i], &z, y, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)){ __atomic_fetch_add(cnt, 1, __ATOMIC_RELAXED); return i; }
+            if(__atomic_compare_exchange_n(&HK[i << sh], &z, y, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)){ if(sh) (*cnt)++; else __atomic_fetch_add(cnt, 1, __ATOMIC_RELAXED); return i; }
             if(z == y) return i; }
         i = (i + 1) & mask;
     }
 }
+static long hslot64(u64_t *HK, long mask, u64_t y, long *cnt){ return hslots64(HK, mask, y, cnt, 0); }
 static long hfind64(const u64_t *HK, long mask, u64_t y){
     long i = (long)((y*0x9E3779B97F4A7C15ULL) >> 21) & mask;
     while(HK[i] != y) i = (i + 1) & mask;
@@ -228,21 +231,23 @@ typedef struct { u64_t h, l; } ks128_t;
 #define H128_OCC (1ULL << 63)
 #define H128_BUSY 1ULL
 static inline long khash128(u128_t y){ u64_t x = (u64_t)y ^ ((u64_t)(y >> 64)*0xC2B2AE3D27D4EB4FULL); return (long)((x*0x9E3779B97F4A7C15ULL) >> 21); }
-static long hslot128(ks128_t *HK, long mask, u128_t y, long *cnt){
+static inline long hslots128(ks128_t *HK, long mask, u128_t y, long *cnt, int sh){
     u64_t hy = (u64_t)(y >> 64) | H128_OCC, ly = (u64_t)y;
     long i = khash128(y) & mask;
     for(;;){
-        u64_t c = __atomic_load_n(&HK[i].h, __ATOMIC_ACQUIRE);
+        ks128_t *e = &HK[i << sh];
+        u64_t c = __atomic_load_n(&e->h, __ATOMIC_ACQUIRE);
         if(!c){ u64_t z = 0;
-            if(__atomic_compare_exchange_n(&HK[i].h, &z, H128_BUSY, 0, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE)){
-                __atomic_store_n(&HK[i].l, ly, __ATOMIC_RELAXED); __atomic_store_n(&HK[i].h, hy, __ATOMIC_RELEASE);
-                __atomic_fetch_add(cnt, 1, __ATOMIC_RELAXED); return i; }
+            if(__atomic_compare_exchange_n(&e->h, &z, H128_BUSY, 0, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE)){
+                __atomic_store_n(&e->l, ly, __ATOMIC_RELAXED); __atomic_store_n(&e->h, hy, __ATOMIC_RELEASE);
+                if(sh) (*cnt)++; else __atomic_fetch_add(cnt, 1, __ATOMIC_RELAXED); return i; }
             c = z; }
-        while(c == H128_BUSY) c = __atomic_load_n(&HK[i].h, __ATOMIC_ACQUIRE);
-        if(c == hy && __atomic_load_n(&HK[i].l, __ATOMIC_RELAXED) == ly) return i;
+        while(c == H128_BUSY) c = __atomic_load_n(&e->h, __ATOMIC_ACQUIRE);
+        if(c == hy && __atomic_load_n(&e->l, __ATOMIC_RELAXED) == ly) return i;
         i = (i + 1) & mask;
     }
 }
+static long hslot128(ks128_t *HK, long mask, u128_t y, long *cnt){ return hslots128(HK, mask, y, cnt, 0); }
 static long hfind128(const ks128_t *HK, long mask, u128_t y){
     u64_t hy = (u64_t)(y >> 64) | H128_OCC, ly = (u64_t)y;
     long i = khash128(y) & mask;
@@ -590,7 +595,7 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         C.nl = 0; C.Slev[C.nl++] = S;
         double tg1 = wtime();
         if(top > 0) dilate(&C.cur, 1 << top);    /* add the axis neighbours (for the refinement: none at top = 0) */
-        if(getenv("SINCQED_TIMING")) say("# %s timing: top level %.1fs (grow loop %.1fs: eval %.1fs, bookkeeping %.1fs; tiers %.1fs), dilate+sort %.1fs\n", g->name, tg1 - tg0, TGROW, TGE, TGS, TGT, wtime() - tg1);
+        if(getenv("SINCQED_TIMING")) say("# %s timing: top level %.1fs (grow loop %.1fs: eval %.1fs, bookkeeping %.1fs [sums+kept %.1fs, tables %.1fs, claims %.1fs]; tiers %.1fs), dilate+sort %.1fs\n", g->name, tg1 - tg0, TGROW, TGE, TGS, TGB[0], TGB[1], TGB[2], TGT, wtime() - tg1);
         C.R.kept_top = C.cur.n;
         C.lev = top - 1; C.next = 0;
     }
