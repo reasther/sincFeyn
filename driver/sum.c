@@ -358,67 +358,87 @@ static int box_zero(int lev, long *nev){
     return 1;
 }
 
+#if defined(__x86_64__) || defined(__i386__)
+#define CPU_RELAX() __builtin_ia32_pause()
+#elif defined(__aarch64__)
+#define CPU_RELAX() __asm__ __volatile__("yield")
+#else
+#define CPU_RELAX() ((void)0)
+#endif
+#include <sched.h>
+static struct { long v; char pad[120]; } OC[6] __attribute__((aligned(128)));   /* the overlap's counters, one per cache line */
+#define SPINWAIT(sp) do{ if(++(sp) < 2000) CPU_RELAX(); else sched_yield(); }while(0)   /* spin, then give the core away */
 /* a block of the refinement: the children of cells c0..c1-1 of the current level, packed in cell order */
 typedef struct { long c0, c1, n; int (*k)[MAXD]; unsigned char *sk, *fl, *te, *nr; double *v; } blk_t;
 typedef struct { int (*k)[MAXD]; unsigned char *sk, *fl, *te; long *cn, *of; } scratch_t;   /* 2^D slots per cell */
+/* the children of cell c (block from c0) into its 2^D scratch slots; returns the number the predictor skips */
+typedef struct { double *st, *st1, *st2; unsigned long long *hy; } pwork_t;
+static void pwork_new(pwork_t *w){ w->st = (double*)malloc(sizeof(double) << DIM); w->st1 = (double*)malloc(sizeof(double) << DIM); w->st2 = (double*)malloc(sizeof(double) << DIM);
+    w->hy = (unsigned long long*)malloc(sizeof(unsigned long long) << DIM); }
+static void pwork_free(pwork_t *w){ free(w->st); free(w->st1); free(w->st2); free(w->hy); }
+static long prep_cell(scratch_t *S, const vec_t *cur, long c, long c0, int last, int st_, double thr, pwork_t *W){
+    int (*pk)[MAXD] = S->k; unsigned char *psk = S->sk, *pfl = S->fl, *pte = S->te; long *pcn = S->cn, nsk = 0;
+    double *st = W->st, *st1 = W->st1, *st2 = W->st2; unsigned long long *hy = W->hy;
+    int kp[MAXD]; ptget(&cur->p[c], kp); long base = (c - c0) << DIM, m = base;
+    /* prediction: child k - st b is the centre of the 2h cube with corners k - 2st c, c a subset of b;
+     * st[b] = mean |f| over those corners (a corner never evaluated counts as thr), by a subset-sum transform */
+    int pon = last && PRED > 0 && VN > 0, tp = DIM < MAXD ? kp[PFLAG] >> 1 : 0;
+    if(pon){
+        int kn[MAXD]; double lv;
+        for(int cc = 0; cc < (1 << DIM); cc++){          /* hashes first, then the lookups with the slots prefetched ahead */
+            for(int i = 0; i < DIM; i++) kn[i] = kp[i] - (((cc >> i) & 1) ? 2*st_ : 0);
+            hy[cc] = vhash(kn); }
+        for(int cc = 0; cc < 16 && cc < (1 << DIM); cc++) __builtin_prefetch(&VS[vpos(hy[cc])]);
+        for(int cc = 0; cc < (1 << DIM); cc++){
+            if(cc + 16 < (1 << DIM)) __builtin_prefetch(&VS[vpos(hy[cc + 16])]);
+            int f = vget_h(hy[cc], &lv);
+            st[cc] = f ? exp(lv) : thr;
+            if(ESOK){ st1[cc] = f >= 2 ? st[cc] : 10*thr; st2[cc] = f >= 3 ? st[cc] : 100*thr; }   /* that run's unseen corners count as its thr */
+        }
+        for(int i = 0; i < DIM; i++) for(int cc = 0; cc < (1 << DIM); cc++) if((cc >> i) & 1) st[cc] += st[cc ^ (1 << i)];
+        for(int cc = 0; cc < (1 << DIM); cc++) st[cc] /= (double)(1 << __builtin_popcount(cc));
+        if(ESOK){
+            for(int i = 0; i < DIM; i++) for(int cc = 0; cc < (1 << DIM); cc++) if((cc >> i) & 1){ st1[cc] += st1[cc ^ (1 << i)]; st2[cc] += st2[cc ^ (1 << i)]; }
+            for(int cc = 0; cc < (1 << DIM); cc++){ double dv = (double)(1 << __builtin_popcount(cc)); st1[cc] /= dv; st2[cc] /= dv; }
+        }
+    }
+    for(int b = 0; b < (1 << DIM); b++){
+      int ok = 1, sk = 0;
+      for(int i = 0; i < DIM; i++){ pk[m][i] = kp[i] - (((b >> i) & 1) ? st_ : 0); if(pk[m][i] < -K) ok = 0; }
+      if(!ok) continue;
+      if(SYMON && !symw(pk[m])) continue;
+      if(pon && st[b] < PRED*thr){
+          nsk++;
+          if(PDIAG) sk = 1;                                   /* evaluated and summed anyway; reported */
+          else if(DUMPF && sampled(pk[m])) sk = 2;            /* evaluated for the dump only, not summed */
+          else continue;
+      }
+      psk[m] = ABSKIP && (kp[PFLAG] & 1); pfl[m] = (unsigned char)sk;
+      { int te = tp; if(pon && ESOK){ int tq = (st1[b] >= PRED*10*thr) + (st1[b] >= PRED*10*thr && st2[b] >= PRED*100*thr); if(tq < te) te = tq; }
+        pte[m] = (unsigned char)te; } m++;
+    }
+    pcn[c - c0] = m - base;
+    return nsk;
+}
+/* after prep_cell for cells c0..c1-1: their offsets in the packed block (serial; one entry per cell) */
+static long prep_offsets(scratch_t *S, long nc){ long n = 0; for(long j = 0; j < nc; j++){ S->of[j] = n; n += S->cn[j]; } return n; }
+static inline void prep_pack(blk_t *bk, scratch_t *S, long j){
+    long base = j << DIM, m = S->cn[j], o = S->of[j];
+    memcpy(bk->k[o], S->k[base], m*sizeof *S->k); memcpy(bk->sk + o, S->sk + base, m); memcpy(bk->fl + o, S->fl + base, m); memcpy(bk->te + o, S->te + base, m);
+}
 static void prep(blk_t *bk, scratch_t *S, const vec_t *cur, long c0, long B, int last, int st_, double thr){
-    long c1 = c0 + B < cur->n ? c0 + B : cur->n, nsk = 0, n = 0;
-    int (*pk)[MAXD] = S->k; unsigned char *psk = S->sk, *pfl = S->fl, *pte = S->te; long *pcn = S->cn, *pof = S->of;
+    long c1 = c0 + B < cur->n ? c0 + B : cur->n, nsk = 0;
     /* children of each cell go to its own 2^D slots in parallel (the predictor's corner lookups are
      * most of this work), then are packed in cell order: same points, same order as a serial pass */
     #pragma omp parallel reduction(+:nsk)
-    { double *st = (double*)malloc(sizeof(double) << DIM), *st1 = (double*)malloc(sizeof(double) << DIM), *st2 = (double*)malloc(sizeof(double) << DIM);
-      unsigned long long *hy = (unsigned long long*)malloc(sizeof(unsigned long long) << DIM);
+    { pwork_t W; pwork_new(&W);
       #pragma omp for schedule(dynamic,4)
-      for(long c = c0; c < c1; c++){
-      int kp[MAXD]; ptget(&cur->p[c], kp); long base = (c - c0) << DIM, m = base;
-              /* prediction: child k - st b is the centre of the 2h cube with corners k - 2st c, c a subset of b;
-               * st[b] = mean |f| over those corners (a corner never evaluated counts as thr), by a subset-sum transform */
-              int pon = last && PRED > 0 && VN > 0, tp = DIM < MAXD ? kp[PFLAG] >> 1 : 0;
-              if(pon){
-                  int kn[MAXD]; double lv;
-                  for(int cc = 0; cc < (1 << DIM); cc++){          /* hashes first, then the lookups with the slots prefetched ahead */
-                      for(int i = 0; i < DIM; i++) kn[i] = kp[i] - (((cc >> i) & 1) ? 2*st_ : 0);
-                      hy[cc] = vhash(kn); }
-                  for(int cc = 0; cc < 16 && cc < (1 << DIM); cc++) __builtin_prefetch(&VS[vpos(hy[cc])]);
-                  for(int cc = 0; cc < (1 << DIM); cc++){
-                      if(cc + 16 < (1 << DIM)) __builtin_prefetch(&VS[vpos(hy[cc + 16])]);
-                      int f = vget_h(hy[cc], &lv);
-                      st[cc] = f ? exp(lv) : thr;
-                      if(ESOK){ st1[cc] = f >= 2 ? st[cc] : 10*thr; st2[cc] = f >= 3 ? st[cc] : 100*thr; }   /* that run's unseen corners count as its thr */
-                  }
-                  for(int i = 0; i < DIM; i++) for(int cc = 0; cc < (1 << DIM); cc++) if((cc >> i) & 1) st[cc] += st[cc ^ (1 << i)];
-                  for(int cc = 0; cc < (1 << DIM); cc++) st[cc] /= (double)(1 << __builtin_popcount(cc));
-                  if(ESOK){
-                      for(int i = 0; i < DIM; i++) for(int cc = 0; cc < (1 << DIM); cc++) if((cc >> i) & 1){ st1[cc] += st1[cc ^ (1 << i)]; st2[cc] += st2[cc ^ (1 << i)]; }
-                      for(int cc = 0; cc < (1 << DIM); cc++){ double dv = (double)(1 << __builtin_popcount(cc)); st1[cc] /= dv; st2[cc] /= dv; }
-                  }
-              }
-              for(int b = 0; b < (1 << DIM); b++){
-                int ok = 1, sk = 0;
-                for(int i = 0; i < DIM; i++){ pk[m][i] = kp[i] - (((b >> i) & 1) ? st_ : 0); if(pk[m][i] < -K) ok = 0; }
-                if(!ok) continue;
-                if(SYMON && !symw(pk[m])) continue;
-                if(pon && st[b] < PRED*thr){
-                    nsk++;
-                    if(PDIAG) sk = 1;                                   /* evaluated and summed anyway; reported */
-                    else if(DUMPF && sampled(pk[m])) sk = 2;            /* evaluated for the dump only, not summed */
-                    else continue;
-                }
-                psk[m] = ABSKIP && (kp[PFLAG] & 1); pfl[m] = (unsigned char)sk;
-                { int te = tp; if(pon && ESOK){ int tq = (st1[b] >= PRED*10*thr) + (st1[b] >= PRED*10*thr && st2[b] >= PRED*100*thr); if(tq < te) te = tq; }
-                  pte[m] = (unsigned char)te; } m++;
-              }
-              pcn[c - c0] = m - base;
-      }
-      free(st); free(st1); free(st2); free(hy); }
+      for(long c = c0; c < c1; c++) nsk += prep_cell(S, cur, c, c0, last, st_, thr, &W);
+      pwork_free(&W); }
     PSKIP += nsk;
-    for(long j = 0; j < c1 - c0; j++){ pof[j] = n; n += pcn[j]; }
+    long n = prep_offsets(S, c1 - c0);
     #pragma omp parallel for schedule(dynamic,16)
-    for(long j = 0; j < c1 - c0; j++){
-        long base = j << DIM, m = pcn[j], o = pof[j];
-        memcpy(bk->k[o], pk[base], m*sizeof *pk); memcpy(bk->sk + o, psk + base, m); memcpy(bk->fl + o, pfl + base, m); memcpy(bk->te + o, pte + base, m);
-    }
+    for(long j = 0; j < c1 - c0; j++) prep_pack(bk, S, j);
     bk->c0 = c0; bk->c1 = c1; bk->n = n;
 }
 
@@ -650,10 +670,18 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
         #define PREP(b_, c0_) prep(b_, &SC, &C.cur, c0_, B, last, st_, thr)
         #define SUBMIT(s_, b_) ((void)0)
 #endif
+        /* On the CPU (SINCQED_OVERLAP, default on) block j+1 is prepared and then evaluated by the other
+         * threads while this thread sums block j, the same way: the sums are the same as a serial pass. */
+        static int OVL = -1; if(OVL < 0){ const char *e = getenv("SINCQED_OVERLAP"); OVL = !(e && !strcmp(e, "0")); }
+        int ovl = OVL && !USEGPU, NTH = omp_get_max_threads();
         if(C.next < C.cur.n){ double tq6 = wtime(); PREP(&BL[sl], C.next); TQ[0] += wtime() - tq6;
-                              if(USEGPU) SUBMIT(sl, &BL[sl]); }
+                              if(USEGPU) SUBMIT(sl, &BL[sl]);
+                              if(ovl){
+                                  #pragma omp parallel
+                                  eval_batch(BL[sl].n, (const int(*)[MAXD])BL[sl].k, BL[sl].sk, BL[sl].nr, BL[sl].v, &C.q, &C.u);
+                                  TQ[2] += wtime() - tq6; } }
         while(C.next < C.cur.n){
-            blk_t *bk = &BL[sl], *bn = &BL[sl ^ 1]; long n = bk->n; double tq2 = wtime();
+            blk_t *bk = &BL[sl], *bn = &BL[sl ^ 1]; long n = bk->n; double tq2 = wtime(); int more = 0, ckdue = -1;
             if(USEGPU && bk->c1 < C.cur.n){ PREP(bn, bk->c1); SUBMIT(sl ^ 1, bn); }
             double tq3 = wtime(); TQ[0] += tq3 - tq2;
             int (*pk)[MAXD] = bk->k; unsigned char *psk = bk->sk, *pfl = bk->fl, *pte = bk->te, *pnr = bk->nr; double *pv = bk->v;
@@ -678,12 +706,27 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
 #endif
             {
             if(USEGPU) eval_gpu_finish(sl, n, (const int(*)[MAXD])pk, psk, pnr, pv, &C.q, &C.u);
-            else
+            else if(!ovl)
             #pragma omp parallel
             eval_batch(n, (const int(*)[MAXD])pk, psk, pnr, pv, &C.q, &C.u);
             double tq4 = wtime();
             TQ[2] += tq4 - tq3; tq3 = tq4;
             ksum_t bs = {0, 0}, b1 = {0, 0}, b2 = {0, 0};     /* this block's sums, added to the totals below */
+            /* a checkpoint due now is written after this block's sum with nothing of block j+1 counted yet */
+            ckdue = CKPT_EVERY > 0 && wtime() - tck >= CKPT_EVERY;
+            more = ovl && NTH > 1 && bk->c1 < C.cur.n && !ckdue;
+            /* overlap, in one team: thread 0 sums block j while the other threads make block j+1's children
+             * (prep_cell), pack them and evaluate them, with the work handed out by atomic counters; thread 0
+             * joins whichever phase is running when its sum is done.  Every child and value lands in its own
+             * slot, so block j+1 is the same as prep() + eval_batch() make it, and the sums are unchanged.
+             * Only thread 0 touches the sums, the predictor hash and the next level; prep_cell reads the
+             * hash only at the last level, and only the level before it writes it. */
+            long oc0 = bk->c1, onc = more ? (oc0 + B < C.cur.n ? oc0 + B : C.cur.n) - oc0 : 0, onv = 0, osk = 0;
+            for(int j = 0; j < 6; j++) OC[j].v = 0;
+            #pragma omp parallel if(more)
+            {
+            int tid = omp_get_thread_num();
+            if(tid == 0){
             for(long i = 0; i < n; i++){                      /* fixed order: reproducible sums */
                 double v = pv[i];
                 if(DUMPF && (!last || sampled(pk[i]))) dump(lev, pfl[i] != 0, pk[i], v*pw);
@@ -702,13 +745,48 @@ res_t hsum(const graph_t *g, double h, int N, double eps, int top){
                     } else C.drop += mw*fabs(v)*pw; }
             }
             kblock(&C.s, &bs, &b1, &b2);
+            { double tq5 = wtime(); TQ[3] += tq5 - tq3; tq3 = tq5; }
+            }
+            if(more){   /* every thread (thread 0 once its sum is done): children, pack, evaluate; each phase
+                         * ends when all its cells are done, and the thread that finishes it opens the next */
+                pwork_t W; pwork_new(&W); long sk = 0, q = 0, ch = eval_chunk(); double u = 0, tq6 = wtime();
+                for(;;){ long c = __atomic_fetch_add(&OC[0].v, 4, __ATOMIC_RELAXED); if(c >= onc) break;
+                         long e1 = c + 4 < onc ? c + 4 : onc;
+                         for(long e = c; e < e1; e++) sk += prep_cell(&SC, &C.cur, oc0 + e, oc0, last, st_, thr, &W);
+                         if(__atomic_add_fetch(&OC[3].v, e1 - c, __ATOMIC_ACQ_REL) == onc){
+                             onv = prep_offsets(&SC, onc); __atomic_store_n(&OC[5].v, 1, __ATOMIC_RELEASE); } }
+                pwork_free(&W); __atomic_fetch_add(&osk, sk, __ATOMIC_RELAXED);
+                { int sp = 0; while(__atomic_load_n(&OC[5].v, __ATOMIC_ACQUIRE) < 1) SPINWAIT(sp); }
+                for(;;){ long j = __atomic_fetch_add(&OC[1].v, 16, __ATOMIC_RELAXED); if(j >= onc) break;
+                         long e1 = j + 16 < onc ? j + 16 : onc;
+                         for(long e = j; e < e1; e++) prep_pack(bn, &SC, e);
+                         if(__atomic_add_fetch(&OC[4].v, e1 - j, __ATOMIC_ACQ_REL) == onc){
+                             bn->c0 = oc0; bn->c1 = oc0 + onc; bn->n = onv; __atomic_store_n(&OC[5].v, 2, __ATOMIC_RELEASE); } }
+                { int sp = 0; while(__atomic_load_n(&OC[5].v, __ATOMIC_ACQUIRE) < 2) SPINWAIT(sp); }
+                if(tid == 1) TQ[0] += wtime() - tq6;
+                long nn = bn->n;
+                for(;;){ long b = __atomic_fetch_add(&OC[2].v, ch, __ATOMIC_RELAXED); if(b >= nn) break;
+                         eval_range(b, b + ch, nn, (const int(*)[MAXD])bn->k, bn->sk, bn->nr, bn->v, &q, &u); }
+                #pragma omp atomic
+                C.q += q;
+                #pragma omp atomic
+                C.u += u;
+            }
+            }
+            if(more){ PSKIP += osk; TQ[2] += wtime() - tq3; }   /* the rest of block j+1 after the sum */
+            tq3 = wtime();
             }
             C.ne += n; C.next = bk->c1; { double tq5 = wtime(); TQ[3] += tq5 - tq3; }
             progress(STAGE, C.next, C.cur.n);
-            if(CKPT_EVERY > 0 && wtime() - tck >= CKPT_EVERY && C.next < C.cur.n){
+            if(ckdue < 0) ckdue = CKPT_EVERY > 0 && wtime() - tck >= CKPT_EVERY;
+            if(ckdue && C.next < C.cur.n){
                 kflush(&C.s); R->t = wtime() - t0; csave(g, h, N, eps, top, &C); tck = wtime(); }
             sl ^= 1;
-            if(!USEGPU && C.next < C.cur.n){ double tq6 = wtime(); prep(&BL[sl], &SC, &C.cur, C.next, B, last, st_, thr); TQ[0] += wtime() - tq6; }
+            if(!USEGPU && !more && C.next < C.cur.n){ double tq6 = wtime(); prep(&BL[sl], &SC, &C.cur, C.next, B, last, st_, thr); double tq7 = wtime(); TQ[0] += tq7 - tq6;
+                if(ovl){                                /* not overlapped this time (one thread, or a checkpoint) */
+                    #pragma omp parallel
+                    eval_batch(BL[sl].n, (const int(*)[MAXD])BL[sl].k, BL[sl].sk, BL[sl].nr, BL[sl].v, &C.q, &C.u);
+                    TQ[2] += wtime() - tq7; } }
         }
         #undef PREP
         #undef SUBMIT
