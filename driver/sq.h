@@ -46,6 +46,8 @@ extern double ABSERR, ABSERR0, ABREL;
 double leaf(const int *k, long *nq, double *unres);
 double leafx(const int *k, int skip, long *nq, double *unres, int *near);
 void eval_batch(long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *nq, double *unres);
+void eval_range(long b0, long b1, long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *q, double *u);
+long eval_chunk(void);
 extern double DDSLACK; extern double NEARF; extern int ABSKIP, ABCHECK; extern long ABMISS, ABSKIPPED;
 extern int DROPUNRES; extern long UNRESDROP;
 #ifdef SQ_GPU

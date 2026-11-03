@@ -64,17 +64,18 @@ double leaf(const int *k, long *nq, double *unres){ int nr; return leafx(k, 0, n
  * packed-point function FV, PACK nodes go to the kernel at once (in its SIMD lanes); the |.| sums are
  * skipped only when all of them may skip.  Values are the same as one node at a time. */
 #define PACK 8
+static inline void eval_pack(long b, long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *q, double *u){
+    long m = n - b < PACK ? n - b : PACK; double sf[PACK][MAXD], w[PACK], v[PACK], ab[PACK]; int all = !ABCHECK;
+    for(long j = 0; j < m; j++){ lattice_node(k[b+j], sf[j], &w[j]); if(!(skip && skip[b+j])) all = 0; }
+    if(all) SQ_AB = 0;
+    FV(m, sf[0], MAXD, v, ab); SQ_AB = 1;
+    for(long j = 0; j < m; j++){ int nr; out[b+j] = finish(v[j], ab[j], sf[j], w[j], skip && skip[b+j], q, u, &nr); if(near) near[b+j] = (unsigned char)nr; }
+}
 void eval_batch(long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *nq, double *unres){
     long q = 0; double u = 0;
     if(FV){
         #pragma omp for schedule(dynamic,8)
-        for(long b = 0; b < n; b += PACK){
-            long m = n - b < PACK ? n - b : PACK; double sf[PACK][MAXD], w[PACK], v[PACK], ab[PACK]; int all = !ABCHECK;
-            for(long j = 0; j < m; j++){ lattice_node(k[b+j], sf[j], &w[j]); if(!(skip && skip[b+j])) all = 0; }
-            if(all) SQ_AB = 0;
-            FV(m, sf[0], MAXD, v, ab); SQ_AB = 1;
-            for(long j = 0; j < m; j++){ int nr; out[b+j] = finish(v[j], ab[j], sf[j], w[j], skip && skip[b+j], &q, &u, &nr); if(near) near[b+j] = (unsigned char)nr; }
-        }
+        for(long b = 0; b < n; b += PACK) eval_pack(b, n, k, skip, near, out, &q, &u);
     } else {
         #pragma omp for schedule(dynamic,64)   /* q, u are per thread here */
         for(long i = 0; i < n; i++){ int nr; out[i] = leafx(k[i], skip && skip[i], &q, &u, &nr); if(near) near[i] = (unsigned char)nr; }
@@ -83,6 +84,14 @@ void eval_batch(long n, const int (*k)[MAXD], const unsigned char *skip, unsigne
     *nq += q;
     #pragma omp atomic
     *unres += u;
+}
+/* nodes b0..b1-1 of a batch of n (b0 a multiple of PACK) on this thread alone: the same values as eval_batch
+ * (the same packs of PACK nodes); q, u are this thread's own accumulators */
+long eval_chunk(void){ return 8*PACK; }
+void eval_range(long b0, long b1, long n, const int (*k)[MAXD], const unsigned char *skip, unsigned char *near, double *out, long *q, double *u){
+    if(b1 > n) b1 = n;
+    if(FV) for(long b = b0; b < b1; b += PACK) eval_pack(b, n, k, skip, near, out, q, u);
+    else for(long i = b0; i < b1; i++){ int nr; out[i] = leafx(k[i], skip && skip[i], q, u, &nr); if(near) near[i] = (unsigned char)nr; }
 }
 
 #ifdef SQ_GPU
