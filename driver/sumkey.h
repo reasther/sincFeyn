@@ -167,7 +167,7 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         if(USEGPU){ int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); for(long i = 0; i < fr.n; i++) ptget(&fr.p[i], fk[i]);
             eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; grow_progress(lay, DONE, tw0, keep->n, fr.n, fr.n, sk0); }
         else if(GROWBATCH){      /* batches through eval_batch: the kernel's packed SIMD form, same values */
-            long ns = 0, qq = 0; double uu = 0; const long CE = 1L << 20;
+            long ns = 0, qq = 0; double uu = 0, lsum = 0; const long CE = 1L << 20;
             int (*fk)[MAXD] = (int(*)[MAXD])malloc((fr.n < CE ? fr.n : CE)*sizeof *fk);   /* one chunk's coordinates at a time */
             for(long c0 = 0; c0 < fr.n; c0 += CE){
                 long m = fr.n - c0 < CE ? fr.n - c0 : CE;
@@ -175,7 +175,11 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
                 for(long i = 0; i < m; i++){ ptget(&fr.p[c0 + i], fk[i]); sk[c0 + i] = gs && fr.p[c0 + i].k[PFLAG] > 0; ns += sk[c0 + i]; }
                 #pragma omp parallel
                 eval_batch(m, (const int(*)[MAXD])fk, sk + c0, nr + c0, v + c0, &qq, &uu);
-                DONE += m; grow_progress(lay, DONE, tw0, keep->n, c0 + m, fr.n, sk0);
+                { double cs = 0;          /* progress display only: the layer's partial sum so far (the real sum is compensated, below) */
+                  #pragma omp parallel for schedule(static) reduction(+:cs)
+                  for(long i = 0; i < m; i++) cs += v[c0 + i];
+                  lsum += cs*pw; }
+                DONE += m; grow_progress(lay, DONE, tw0, keep->n, c0 + m, fr.n, sk0 + lsum);
             }
             ABSKIPPED += ns; q += qq; u += uu; free(fk);
         }
