@@ -1,0 +1,4 @@
+# name     volkov                       L D w      h    N      eps top  value                  err       disc     prune    trunc    round    S_2h            evals        time_s  ref                    diff
+# 2026-11-03 02:59:06  /Volumes/DataHaven/sincFeyn/bin/sincqed run 2.2 45 3.5e-7 0 g5_1663 
+# window |z| <= 48.4
+g5_1663  4; 1-7, 2-5, 3-11, 6-10, 8-9 5 12 2 2.200   45  3.5e-07 0 -4.483906090771052e+00 4.129e-02 0.00e+00 4.13e-02 0.00e+00 0.00e+00               -    531945920     962.6                      -          -

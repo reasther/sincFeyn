@@ -6,11 +6,12 @@ authors:
     given-names: Richard
     affiliation: "University of Auckland"
 license: MIT
-version: "1.0.0"
-date-released: "2026-10-07"
+version: "1.1.0"
+date-released: "2026-11-03"
 repository-code: "https://github.com/reasther/sincFeyn"
 abstract: >-
-  Two-, three- and four-loop QED contributions to the electron anomalous magnetic moment from
+  Two-, three- and four-loop QED contributions to the electron anomalous magnetic moment, and a
+  sample of five-loop graphs, from
   Schwinger-parametric integrands with Volkov's pointwise forest subtraction, evaluated by
   pruned hierarchical Sinc (trapezoid in ln s) sums. The code was written almost entirely by an
   AI coding assistant (Claude, Anthropic) under the author's direction.
