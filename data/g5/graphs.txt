@@ -1,0 +1,15 @@
+# The eleven five-loop graphs of the paper (kernel names; scripts/g5info.py gives Volkov strings).
+# Class abcdeeabcd (all five graphs of one self-energy class):
+g5_3086
+g5_1784
+g5_1078
+g5_372
+g5_2490
+# D = 12 graphs from the classes where AHKN (2024) and Volkov (2019) disagree most:
+g5_1663
+g5_3024
+g5_717
+# D = 13 graphs (no subtraction terms), two from those classes and one more:
+g5_2567
+g5_1795
+g5_1221

@@ -1,0 +1,4 @@
+# name     volkov                       L D w      h    N      eps top  value                  err       disc     prune    trunc    round    S_2h            evals        time_s  ref                    diff
+# reconstructed from g5_372_h2.1_eps2e-7_top0_N47.log (no .txt was uploaded); value to 12 digits
+# window |z| <= 50.4
+g5_372   2; 1-8, 3-9, 4-10, 5-11, 6-7 5 12 2 2.100   49  2.0e-07 0 +1.229222466290000e-01 1.720e-03 0.00e+00 1.72e-03 0.00e+00 0.00e+00               -    712115093    1600.0                      -          -

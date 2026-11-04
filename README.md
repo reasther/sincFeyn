@@ -1,6 +1,8 @@
 # sincFeyn
 
-This code evaluates QED vertex graphs that contribute to the electron anomalous magnetic moment. It has been tested with diagrams up to 4 loops and a sampling of 5 loop diagrams. 
+Sinc-function evaluation of the QED vertex graphs that contribute to the electron anomalous
+magnetic moment, at two, three and four loops, and a sample of five-loop graphs. The overall 
+summation code can be extended to other scenarios. 
 
 Each graph is written as an integral over Schwinger parameters. Its ultraviolet and infrared
 divergences are removed point by point with Volkov's forest formula. The integral is then
@@ -24,6 +26,7 @@ everything needed to reproduce its numbers:
 | two loops | 7 | 5 | every graph against its exact value (Volkov's subtraction scheme) |
 | three loops | 72 | 41 | the sum against A1^(6) (Laporta–Remiddi): -1.7e-8 at h = 0.7 |
 | four loops | 891 | 423 | all coded; group V (518 diagrams without lepton loops): see the paper |
+| five loops | 12672 (6354 without lepton loops) | 3213 without lepton loops | generator covers all; 11 graphs run against Volkov's values ([FIVE_LOOP.md](docs/FIVE_LOOP.md)) |
 
 Every diagram is computed from scratch; the literature is used only for comparison.
 
@@ -43,10 +46,10 @@ The program is called `sincqed`. On macOS use `make CC=gcc-14` (or whichever Hom
 have). The usage guide is [docs/USAGE.md](docs/USAGE.md). With an NVIDIA GPU, `make GPU=1`
 builds `bin/sincqed-gpu`, which evaluates the integrand on the GPU; see [docs/GPU.md](docs/GPU.md).
 
-## Four-loop kernels
+## Four- and five-loop kernels
 
-The four-loop group-V kernels (g4, 269 files) and the four-loop light-by-light kernels (lbl4) are
-too large for the repository. They come as release archives that unpack into `kernels-ext/`
+The four-loop group-V kernels (g4, 269 files), the four-loop light-by-light kernels (lbl4) and the
+five-loop kernels of the paper (g5, 11 files) are too large for the repository. They come as release archives that unpack into `kernels-ext/`
 (not tracked by git; the Makefile reads them there, `KEXT=DIR` to keep them elsewhere). They can
 also be regenerated (FORM needed; a few hours on 16 cores):
 
@@ -66,6 +69,7 @@ We provide code to generate these from scratch.  Each diagram (with ambitious op
 | [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | how a graph becomes a Sinc sum: parametrisation, subtractions, the hierarchical sum, precision |
 | [docs/USAGE.md](docs/USAGE.md) | building, running, settings, choosing h, N and eps |
 | [docs/REPRODUCE.md](docs/REPRODUCE.md) | the commands behind the numbers in the paper |
+| [docs/FIVE_LOOP.md](docs/FIVE_LOOP.md) | the five-loop graphs, their h extrapolation, and how five-loop kernels are made |
 | [docs/GENERATOR.md](docs/GENERATOR.md) | the kernel generator and its checks |
 | [docs/LEPTON_LOOPS.md](docs/LEPTON_LOOPS.md) | the four-loop lepton-loop classes and their exact values |
 | [docs/GPU.md](docs/GPU.md) | the CUDA back end |
@@ -79,7 +83,8 @@ driver/      the integration driver: hierarchical Sinc sum, precision fallback, 
 kernels/     generated C, one directory per class (g2 g3 v3 v4 w4 pi6; g4 lbl4 from the release)
 generator/   Python: graphs and forests, Dirac tables, kernel emission, lepton-loop generators
 tools/       source transformations of the kernels (shared sub-sums, one-point rule, SIMD) and checks
-scripts/     run scripts for the scans in the paper; GPU code generators
+scripts/     run scripts for the scans in the paper, five-loop fit and Fig. 5; GPU code generators
+data/g5/     the five-loop runs behind Fig. 5 and Volkov's reference values for them
 tests/       regression runs (make test) and the regeneration checks
 docs/        documentation and diagrams
 mathematica/ the two-loop Sinc sums in Mathematica, translated from the C kernels

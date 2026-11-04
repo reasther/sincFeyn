@@ -1,32 +1,121 @@
-# Five loops: first tests
+# Five loops
 
-Notes from a first attempt at tenth-order (five-loop) graphs without lepton loops, run on a 4-core,
-16 GB machine. Nothing here is production quality yet.
+The paper evaluates a sample of eleven tenth-order (five-loop) vertex graphs without lepton loops and compares
+them with Volkov's 2019 Monte Carlo values (Fig. 5). This page describes those runs, the h extrapolation and
+pruning correction applied to them, and how the five-loop kernels are made.
 
-## Quick start
+## The graphs
+
+`data/g5/graphs.txt` lists them. Reference values, errors and GPU times are Volkov's per-graph values
+(supplement of PRD 100, 096004, `class_*_aver.txt`), copied for these eleven graphs into
+`data/g5/volkov2019.tsv`. They use the same subtraction scheme as sincFeyn (on-shell U and L, M^2 = m^2) and
+include the mirror weight.
+
+| kernel | Volkov graph | D | w | Volkov 2019 | set |
+|---|---|---|---|---|---|
+| g5_3086 | 6; 1-8, 2-9, 3-10, 4-11, 5-7 | 12 | 1 | -0.387249(566) | class abcdeeabcd |
+| g5_1784 | 4; 1-8, 2-9, 3-10, 5-11, 6-7 | 12 | 2 | +0.148707(628) | class abcdeeabcd |
+| g5_1078 | 3; 1-8, 2-9, 4-10, 5-11, 6-7 | 12 | 2 | -0.921393(634) | class abcdeeabcd |
+| g5_372  | 2; 1-8, 3-9, 4-10, 5-11, 6-7 | 12 | 2 | +0.148167(611) | class abcdeeabcd |
+| g5_2490 | 5; 1-8, 2-9, 3-10, 4-11, 6-7 | 12 | 2 | +0.771280(641) | class abcdeeabcd |
+| g5_1663 | 4; 1-7, 2-5, 3-11, 6-10, 8-9 | 12 | 2 | -4.441411(1321) | AHKN-Volkov tension classes |
+| g5_3024 | 6; 1-7, 2-4, 3-11, 5-10, 8-9 | 12 | 2 | -6.061594(1369) | AHKN-Volkov tension classes |
+| g5_717  | 3; 1-4, 2-7, 5-8, 6-11, 9-10 | 12 | 2 | -5.416099(1108) | AHKN-Volkov tension classes |
+| g5_2567 | 5; 1-9, 2-7, 3-10, 4-8, 6-11 | 13 | 2 | -0.625916(201) | tension classes, no subtractions |
+| g5_1795 | 4; 1-8, 2-10, 3-7, 5-9, 6-11 | 13 | 2 | +0.521242(242) | tension classes, no subtractions |
+| g5_1221 | 3; 1-10, 2-5, 4-7, 6-9, 8-11 | 13 | 2 | -0.730246(533) | no subtractions |
+
+The class abcdeeabcd (one of the 98 self-energy classes of arXiv:2412.06473 with a single second-order
+self-energy) is all five integrals of one gauge-invariant self-energy class; its Volkov sum is -0.240488.
+The tension classes are those where Aoyama et al. (2024) and Volkov (2019) differ most (X382, X227, X352, X350).
+
+## The recipe
+
+Every run is top = 0 (the top-down sum, `sincqed run H N EPS 0 GRAPH`) with N = 2 ceil(48/h) + 1.
+
+1. **h scan at matched eps.** h = 2.4, 2.3, 2.2, 2.1 (and 2.0 for the class graphs) with
+   eps = 1e-6 (h/2.4)^D. Scaling eps with the number of points keeps the pruned fraction about the same at
+   every h, so the scan sees only the h dependence. Mixing eps across h spoils the fit.
+2. **h extrapolation.** Least squares S(h) = S_inf + A exp(-c/h) over all the matched-eps points (c on a grid,
+   S_inf and A linear). Equation 7 of the paper motivates the form; the fitted c is 13-23. An exact
+   three-point fit is ill-conditioned (a 3e-4 wobble in one point moves S_inf by 0.02), so four or five h
+   are used.
+3. **Pruning correction.** One more run at h = 2.4, eps = 1e-5. The loss from pruning falls geometrically
+   with eps, by a ratio r = 0.24 per decade at D = 12 (Aitken on eps 1e-5, 1e-6, 1e-7 at h = 2.4 agrees
+   to ~5e-4 for g5_717, 1663, 3024), so delta = r/(1-r) (S(1e-6) - S(1e-5)) is added to S_inf.
+   At D = 13 the measured ratio is larger (0.28 for g5_2567 from 1e-6 to 1e-7, still rising), so the
+   rule under-corrects there; `K13=...` in fit5.py changes the coefficient for D = 13.
+
+Every run that enters a result is charged in the cost of Fig. 5.
+
+## Reproducing Fig. 5 and the table below
+
+The results files of the runs used in the paper are in `data/g5/` (one `bin/sincqed` results line each).
+From them, with no runs:
 
 ```
-VOLKOV_SUPP=/path/to/volkov_supplement sh scripts/run5.sh "6; 1-8, 2-9, 3-10, 4-11, 5-7" 2.4 1e-7
+python3 scripts/fit5.py                 # per-graph extrapolated values against Volkov (the table below)
+python3 scripts/plot5_cost.py           # Fig. 5 (g5_cost_mean.png) and the per-graph version (g5_cost.png)
 ```
 
-`scripts/run5.sh` takes one graph (a Volkov string in either orientation, his supplement's
-`6;1*8;...` form, or a kernel name such as `g5_3086`) and does everything below: it generates the
-kernel, vectorises, optimises and splits it, builds `bin/sincqed` with every kernel in
-`kernels-ext/g5`, runs at the given h and eps, and prints the value, the driver's prune estimate (with the eps-shadow
-estimate alongside), and the difference from Volkov's 2019 value. Steps whose output exists are skipped,
-so a second h or eps for the same graph goes straight to the run. `python3 scripts/g5info.py GRAPH
-[SUPPDIR]` prints the kernel name, D, mirror weight, number of subtraction terms and Volkov's value
-without running anything. VOLKOV_SUPP is the directory of Volkov's `class_*_aver.txt` files (the
-supplement of PRD 100, 096004); the tables are not in this repository. Settings are listed at the
-top of the script (JOBS, MAKEJ, THREADS, OUT, WINDOW).
+These runs are heterogeneous: they were made between 31 October and 3 November 2026 on several machines
+(a 24-thread Mac Studio M2 Ultra, a 12-thread laptop and a desktop) with successive versions of the driver,
+all of them top = 0 at the settings above. The figure in the preprint is drawn from them, and its costs
+are scaled from their evaluation counts (see `scripts/plot5_cost.py`), not from wall time. The final
+version of the paper will use runs made with the tagged release, which the commands below reproduce.
+`data/g5/README.md` lists what is in the directory.
 
-For several graphs, `sh scripts/run5batch.sh LIST 2.4 1e-7` (one graph per line in LIST) first finds
-the kernels that are missing and generates them all in one `gen.py` call, which runs the Dirac tables
-and the per-graph emission in parallel over JOBS processes with one shared table cache (separate
-`gen.py` processes would overwrite each other's `generator/cache_dirac.pkl`). It then builds once,
-serially (MAKEJ=1), and runs the graphs one after another.
+To run everything again (FORM and python3 with numpy and sympy needed for the kernels):
 
-## Generator changes
+```
+sh scripts/run5batch.sh data/g5/graphs.txt 2.4 1e-6    # generate, split and build the 11 kernels, run h = 2.4
+sh scripts/run5_hscan.sh                                # h = 2.3, 2.2, 2.1 at matched eps, and h = 2.4 at 1e-5
+python3 scripts/fit5.py runs5
+python3 scripts/plot5_cost.py runs5
+```
+
+The kernels take a few hours to generate and build; the runs take about 20 hours on a 24-thread machine.
+
+## Results
+
+`python3 scripts/fit5.py` on `data/g5/` (eps rule r = 0.24 for every D; sigma is Volkov's, on the side facing
+our value):
+
+| graph | D | h used | c | S_inf | eps corr | result | Volkov | diff | sigma |
+|---|---|---|---|---|---|---|---|---|---|
+| g5_3086 | 12 | 2.4-2.0 | 12.9 | -0.386595 | -1.0e-3 | -0.387594 | -0.387249 | -0.09% | -0.9 |
+| g5_1784 | 12 | 2.4-2.0 | 22.7 | +0.148866 | +6.6e-4 | +0.149522 | +0.148707 | +0.55% | +1.3 |
+| g5_1078 | 12 | 2.4-2.0 | 18.1 | -0.918099 | -3.1e-3 | -0.921171 | -0.921393 | +0.02% | +0.3 |
+| g5_372  | 12 | 2.4-2.0 | 13.8 | +0.149514 | +2.4e-4 | +0.149758 | +0.148167 | +1.07% | +2.6 |
+| g5_2490 | 12 | 2.4-2.0 | 17.9 | +0.771342 | +9.3e-4 | +0.772267 | +0.771280 | +0.13% | +1.5 |
+| g5_1663 | 12 | 2.4-2.1 | 19.6 | -4.429827 | -1.0e-2 | -4.440009 | -4.441411 | +0.03% | +1.1 |
+| g5_3024 | 12 | 2.4-2.1 | 15.8 | -6.042537 | -1.5e-2 | -6.057191 | -6.061594 | +0.07% | +3.2 |
+| g5_717  | 12 | 2.4-2.1 | 17.2 | -5.401530 | -1.1e-2 | -5.412350 | -5.416099 | +0.07% | +3.4 |
+| g5_2567 | 13 | 2.4-2.1 | 22.9 | -0.621272 | -3.1e-3 | -0.624332 | -0.625916 | +0.25% | +7.9 |
+| g5_1795 | 13 | 2.4-2.1 | 20.3 | +0.516881 | +2.8e-3 | +0.519654 | +0.521242 | -0.31% | -10.4 |
+| g5_1221 | 13 | 2.4-2.1 | 16.5 | -0.722909 | -4.6e-3 | -0.727514 | -0.730246 | +0.37% | +5.1 |
+
+The mean relative difference is 2.7e-3 (Volkov's mean relative sigma is 1.0e-3). The three D = 13
+residuals are each 0.52-0.59 of their eps correction and on the side of under-correction, which is what
+the larger D = 13 eps ratio predicts. Per-diagram mean cost of the projected values is 1.04 TFLOP-hours at
+nominal peak, against 32 for Volkov's Monte Carlo (Fig. 5).
+
+## Running one graph
+
+```
+VOLKOV_SUPP=/path/to/volkov_supplement sh scripts/run5.sh "6; 1-8, 2-9, 3-10, 4-11, 5-7" 2.4 1e-6
+```
+
+`scripts/run5.sh` takes one graph (a Volkov string in either orientation, his supplement's `6;1*8;...` form,
+or a kernel name such as `g5_3086`). It generates the kernel, vectorises, optimises and splits it, builds
+`bin/sincqed` with every kernel in `kernels-ext/g5`, runs at the given h and eps, and prints the value and,
+with VOLKOV_SUPP set, the difference from Volkov's 2019 value. Steps whose output exists are skipped.
+`python3 scripts/g5info.py GRAPH [SUPPDIR]` prints the kernel name, D, mirror weight, number of subtraction
+terms and Volkov's value without running anything. For several graphs, `sh scripts/run5batch.sh LIST H EPS`
+generates all the missing kernels in one `gen.py` call (one shared Dirac-table cache), builds once and runs
+them one after another. Settings are listed at the top of each script.
+
+## Generator changes for five loops
 
 - `generator/symb.py`: the determinant and adjugate of the loop matrix are now computed over the
   polynomial ring ZZ[s] (`DomainMatrix.adj_det`). SymPy's `Matrix.det()`/`adjugate()` (Bareiss
@@ -39,7 +128,7 @@ serially (MAKEJ=1), and runs the graphs one after another.
 `enumerate_graphs(5)` gives 3213 integrals (6354 diagrams), matching Aoyama et al.,
 arXiv:2412.06473, and Volkov, arXiv:1909.08015.
 
-## Building five-loop kernels
+## Building five-loop kernels by hand
 
 ```
 cd generator
@@ -83,108 +172,3 @@ make -j2 CLASSES="g2 g5" QOPT=O0
   OPT_K4 (-O2).
 - Building recipe, after optimize.sh: `python3 tools/splitform.py kernels-ext/g5/*.c`, then
   `make -j2 CLASSES="g2 g5" QOPT=O0`.
-
-## The test class
-
-The self-energy topology "abcdeeabcd" (one of the 98 classes in arXiv:2412.06473 with a single
-second-order self-energy) is mirror symmetric: its 9 vertex graphs are 5 integrals. Reference values
-are Volkov's 2019 per-graph values (supplement of PRD 100, 096004, `class_*_aver.txt`). They use
-the same subtraction scheme (on-shell U and L, M^2 = m^2) and include the mirror weight.
-
-| kernel | graph | w | Volkov 2019 |
-|---|---|---|---|
-| g5_3086 | 6; 1-8, 2-9, 3-10, 4-11, 5-7 | 1 | -0.387249(566) |
-| g5_1078 | 3; 1-8, 2-9, 4-10, 5-11, 6-7 | 2 | -0.921393(634) |
-| g5_372  | 2; 1-8, 3-9, 4-10, 5-11, 6-7 | 2 | +0.148167(611) |
-| g5_1784 | 4; 1-8, 2-9, 3-10, 5-11, 6-7 | 2 | +0.148707(628) |
-| g5_2490 | 5; 1-8, 2-9, 3-10, 4-11, 6-7 | 2 | +0.771280(641) |
-| sum | | | -0.240488 |
-
-## Results (4 threads, double-double fallback, N chosen so that |z| <= 48)
-
-| graph | h | eps | value | evals | time | peak RSS |
-|---|---|---|---|---|---|---|
-| g5_3086 | 2.4 | 1e-6 | -0.360976 | 9.4e7 | 318 s | 73 MB |
-| g5_3086 | 2.2 | 1e-6 | -0.351277 | 1.6e8 | 575 s | 58 MB |
-| g5_3086 | 2.0 | 1e-6 | -0.349492 | 2.7e8 | ~1650 s | 52 MB |
-| g5_3086 | 2.4 | 1e-7 | -0.370940 | 3.1e8 | 1087 s | 75 MB |
-| g5_3086 | 2.4 | 1e-8 | -0.381621 | 8.6e8 | 2959 s | 73 MB |
-| g5_3086 | 2.4 | 1e-9 | -0.383597 | | (Mac, 24 thr) | |
-| g5_3086 | 2.4 | 1e-10 | -0.384560 | | (Mac, 24 thr) | |
-| g5_372 | 2.4 | 1e-7 | +0.100746 | | (Mac, 24 thr) | |
-| g5_1784 | 2.4 | 1e-7 | +0.123628 | 5.2e8 | 1024 s (Mac, 24 thr) | |
-| g5_2490 | 2.4 | 1e-7 | +0.805785 | | (Mac, 24 thr) | |
-| g5_1078 | 2.4 | 1e-7 | -0.994593 | | (Mac, 24 thr) | |
-| g5_1078 | 2.4 | 1e-6 | -0.948473 | 2.2e8 | 5797 s | 87 MB |
-| g5_1221 (D = 13) | 2.4 | 1e-6 | -0.610670 | 4.2e8 | ~3 h | 62 MB |
-
-g5_1221 = 3; 1-10, 2-5, 4-7, 6-9, 8-11 is a primitive D = 13 graph (one term, no subdivergences),
-Volkov -0.730246(533). Its eps extrapolation estimates the pruning loss left at eps = 1e-6 at -0.128,
-which gives -0.739, 1.2% from Volkov. |S_2h - S_h| is only 1.2e-2, so at D = 13 the pruning loss is
-also much larger than the discretisation error.
-
-Class "abcdeeabcd" at h = 2.4, eps = 1e-7: sum -0.335374 against Volkov's -0.240488. Per graph the
-differences are +0.016 (g5_3086), -0.047 (g5_372), -0.025 (g5_1784), +0.034 (g5_2490) and -0.073
-(g5_1078), of both signs. g5_1078 moved away from Volkov between eps = 1e-6 (-0.948) and 1e-7 (-0.995),
-so either its pruning loss is not monotone or something else (h, or the graph itself) is off; its
-eps = 1e-8 and h = 2.0 values are the next check. g5_3086 at 1e-10 is -0.384560: the per-decade changes
-are -0.0107, -0.0020, -0.0010, so the fall-off has slowed (ratio 5.4, then 2.1).
-
-The g5_3086 eps ladder at h = 2.4 is -0.370940, -0.381621, -0.383597 for eps = 1e-7, 1e-8, 1e-9:
-per-decade changes -0.0107 and -0.0020, so the pruning loss is now falling (ratio 5.4) and extrapolates
-to about -0.3840. The remaining 0.8% to Volkov's -0.3872(6) is presumably the h = 2.4 discretisation;
-h = 2.2 and 2.0 at eps = 1e-9 are the next runs. g5_372 at eps = 1e-7 (+0.1007 against +0.1482) is a
-cancelling 4-term graph and is far from converged in eps.
-
-Tension class X227 (Aoyama et al. 2412.06473 Table I, 3.6 sigma): g5_1663 = 4; 1-7, 2-5, 3-11, 6-10, 8-9
-(D = 12, 4 terms, |integrand|/value 1.08) at h = 2.4, eps = 1e-8 gives -4.441509 against Volkov's
--4.441411(1321), a difference of 1e-4 (0.002%). The same pass gives -4.2398 at 1e-7 and -3.7925 at 1e-6
-(per-decade changes -0.447, -0.202), so the pruning ladder is not visibly converged and the agreement
-is better than the prune estimate (1.9e-2) can vouch for; eps = 1e-9 would test it. Cost: 2.2e9
-evaluations, 531k cells, 9.2 h on a 12-thread laptop (including idle gaps), against Volkov's 7.6 V100-hours.
-
-Two more clean graphs from the tension classes, h = 2.4, eps = 1e-8 (laptop, 12 threads), with the 1e-7
-and 1e-6 values from the same pass:
-
-| graph | class | 1e-6 | 1e-7 | 1e-8 | Volkov | diff at 1e-8 | time |
-|---|---|---|---|---|---|---|---|
-| g5_1663 | X227 | -3.7925 | -4.2398 | -4.441509 | -4.441411(1321) | -1e-4 (0.00%) | 33047 s |
-| g5_3024 | X227 | -5.3560 | -6.0958 | -6.344462 | -6.061590(1400) | -0.283 (4.7%) | 10525 s |
-| g5_717 | X090 | -4.5481 | -5.1254 | -5.387754 | -5.416100(1100) | +0.028 (0.5%) | 10156 s |
-
-All three ladders still move by -0.2 to -0.3 per decade at 1e-8 (ratios 2.2-3.0). g5_3024 is already past
-Volkov and moving away, as g5_1078 did; continuing the ladders geometrically would put all three 4-7% more
-negative than Volkov. So at h = 2.4 either the pruning loss stops being geometric, or there is an
-h-dependent offset. An h scan at fixed eps (g5_3086 at eps = 1e-8, h = 2.4, 2.2, 2.0, 1.8) is the next test.
-
-An independent build on a 24-thread Mac (Homebrew gcc, FORM built from source) gave g5_3086 at h = 2.4,
-eps = 1e-7 as -0.370940243117 with the same 306728281 evaluations, identical to the Linux run, in 321 s.
-
-The eps extrapolation does not extrapolate the pruning loss at five loops: at eps = 1e-7 it predicts -9.5e-4
-left, but the next decade alone moves the value by -1.07e-2 (the per-decade moves are -0.0099 and
--0.0107, not falling geometrically). The prune column is the better guide (2.6e-2 at 1e-7, against
-1.6e-2 actually left), and run5.sh reports the difference from Volkov in units of it.
-
-(The h = 2.0 run was interrupted and resumed from its checkpoint, so its time is approximate.)
-
-- **Pruning dominates at h ≈ 2.** Each tenfold cut in eps moves g5_3086 by about +0.01 towards
-  Volkov's value (-0.3610, -0.3709, -0.3816). The prune column (8.1e-2, 2.6e-2, 6.9e-3) is the
-  right size: value + prune at eps = 1e-8 is -0.3885, against -0.3872(6). With eps = 1e-6, the
-  h-ladder only follows the pruning loss, so h-dependence should be studied at eps <= 1e-8.
-- **Memory is not a limit.** The hierarchical sum keeps 5e4-4e5 cells and the peak RSS stays
-  under 90 MB. What sets the cost is time: evaluations grow about 3x per tenfold cut in eps and
-  about 1.7x per 10% cut in h.
-- **g5_1078 costs about 8x more per evaluation than g5_3086** (26 vs 3.4 µs per evaluation per
-  thread). It has twice as many Dirac structures and no symmetry fold; the rest is not yet
-  understood.
-- The `disc` column is far too large at these h (as at two loops) and should be ignored.
-- `sincqed scale` on a five-loop graph means 3^14 directions evaluated in double-double. That did
-  not finish in 10 minutes; a sampled version of the test is needed.
-
-## Next steps
-
-1. g5_3086 at eps = 1e-9 (h = 2.4), and at h = 2.0 with eps = 1e-8, to separate the
-   discretisation and pruning errors (a few hours on 4 cores; quicker on 24+ threads).
-2. Compile g5_372, g5_1784 and g5_2490 and run the whole class against -0.240488.
-3. Profile g5_1078, and try FORM O2 on the largest nodes for faster kernels.
-4. A sampled scale test for D = 12.

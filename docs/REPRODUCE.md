@@ -4,6 +4,21 @@ The commands below produce the numbers in the paper. Times are wall-clock. A run
 settings and thread count gives bitwise-identical sums; a different thread count or machine
 changes only the last digits.
 
+**Preprint figures.** The figures in the preprint are drawn from heterogeneous runs: they were made over
+several weeks on different machines (Apple M2 Max and M2 Ultra, x86 desktops and laptops, an NVIDIA A100)
+with successive versions of the driver, as the code was developed. Rerunning the commands here with this
+release gives the same values to well within the accuracies plotted, but not bit for bit, and different
+times. The five-loop runs behind Fig. 5 are included in `data/g5/` (see [FIVE_LOOP.md](FIVE_LOOP.md)).
+The figures in the final version of the paper will be redrawn from runs of the tagged release, which
+these commands then reproduce exactly.
+
+| paper | section here |
+|---|---|
+| Table I, Fig. 2 | [2. Two loops](#2-two-loops-table-i-fig-2) |
+| Fig. 4 top | [3. Three loops](#3-three-loops-fig-4-top) |
+| Fig. 4 bottom | [4. Four loops, group V](#4-four-loops-group-v-fig-4-bottom) |
+| Fig. 5 | [7. Five loops](#7-five-loops-fig-5) |
+
 Build first (Linux; on macOS add `CC=gcc-14` or your Homebrew GCC):
 
 ```
@@ -44,7 +59,7 @@ h = 0.7. The last column of each results file is the difference from the exact v
 of the seven diagrams differs from A1^(4) by +9e-7 at h = 1.0, +2.3e-9 at h = 0.7 and +4.3e-11
 at h = 0.6. The whole ladder takes a few minutes on 4 cores.
 
-## 3. Three loops (Table II, Fig. 4, Fig. 5 top)
+## 3. Three loops (Fig. 4 top)
 
 All 41 three-loop files (72 diagrams), h = 1.50 ... 1.00 in steps of 0.01, then 0.95 ... 0.80,
 with eps tightened as h falls:
@@ -54,14 +69,14 @@ sh scripts/run3_hfine.sh runs3_fine      # about 15 hours on a 12-thread Apple M
 sh scripts/sum3.sh runs3_fine            # totals per h against A1^(6)
 ```
 
-The h = 0.7 point (the targets of Table II):
+The h = 0.7 point:
 
 ```
 LADDER="0.70:1e-15" sh scripts/run3_hscan.sh runs3_fine
 ```
 
 The D = 7 graphs need up to about 55 GB of memory each at h = 0.7, so run them one at a time on
-a machine with less than about 128 GB. The series at one common eps in Fig. 5 is the same
+a machine with less than about 128 GB. The fixed-eps series in Fig. 4 is the same
 command with `LADDER` set to every h from 2.2 to 0.7 at `1e-15`. Each level writes
 `OUTDIR/h<h>/results.txt`; the gauge-invariant sets are sums over its entries:
 
@@ -78,7 +93,7 @@ are known exactly only as their sum, 0.7548069870749.
 
 On a GPU: `BIN=bin/sincqed-gpu PAR=4 sh scripts/run3_hfine.sh` ([GPU.md](GPU.md)).
 
-## 4. Four loops, group V (Fig. 5 bottom)
+## 4. Four loops, group V (Fig. 4 bottom)
 
 ### Kernels
 
@@ -140,3 +155,26 @@ SCALE_E=2 bin/sincqed scale g3_27    # {-2..2}
 
 A subtracted integrand passes when there is no direction of slow decay. These tests were run for
 all two- and three-loop graphs and for the four-loop light-by-light classes.
+
+## 7. Five loops (Fig. 5)
+
+Eleven graphs without lepton loops, each an h scan at matched eps (h = 2.4 to 2.1, top = 0) plus one
+eps step, extrapolated to h -> 0 and eps -> 0 and compared with Volkov's 2019 values. From the
+runs included in `data/g5/` (the preprint's figure):
+
+```
+python3 scripts/fit5.py                 # per-graph values against Volkov; mean relative difference 2.7e-3
+python3 scripts/plot5_cost.py           # g5_cost_mean.png (Fig. 5) and g5_cost.png (per graph)
+```
+
+From scratch (FORM needed for the kernels; about a day on a 24-thread machine):
+
+```
+sh scripts/run5batch.sh data/g5/graphs.txt 2.4 1e-6
+sh scripts/run5_hscan.sh
+python3 scripts/fit5.py runs5
+python3 scripts/plot5_cost.py runs5
+```
+
+[FIVE_LOOP.md](FIVE_LOOP.md) gives the graphs, the extrapolation recipe and the results table.
+
