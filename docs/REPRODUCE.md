@@ -44,8 +44,14 @@ vacuum-polarisation classes v4, w4, pi6) from an empty Dirac-table cache and com
 
 ## 2. Two loops (Table I, Fig. 2)
 
+Table I (h = 0.6), with the residuals already divided out (about 15 seconds):
+
+```
+sh scripts/table1.sh
+```
+
 Every two-loop graph is compared with its exact value in Volkov's subtraction scheme (the
-closed forms are in Table I and in `driver/graphs.c`):
+closed forms are in Table I and in `driver/graphs.c`). Fig. 2 is the same comparison over a range of h:
 
 ```
 for h in $(seq 1.60 -0.02 0.60); do
