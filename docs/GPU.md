@@ -8,7 +8,7 @@ same points, and sum them in the same order. What changes is where the work runs
 - the host work around it overlaps with the GPU;
 - the double-double fallback runs on the CPU, vectorised (8 points at a time with AVX-512).
 
-GPU kernels are built for the classes `g2 g3 v3 g4`. The other classes (`v4 w4 pi6 lbl4`) run on
+GPU kernels are built for the classes `g2 g3 v3 g4 g5`. The other classes (`v4 w4 pi6 lbl4`) run on
 the CPU in `bin/sincqed-gpu`.
 
 Developed and tested on an NVIDIA A100 80GB (sm_80) with a 28-core Xeon (Cascade Lake, AVX-512) and 93 GB
@@ -42,11 +42,11 @@ PAR=2 sh scripts/run_groupV_h1.3_gpu.sh        # groupV_h1.3/; rerun the same co
 `make GPU=1` options:
 - `GPUARCH`: the target GPU. The default `native` is the GPU in the machine; `sm_80` is an A100, `sm_90` an H100.
 - `CUDA`: install prefix (default `/usr/local/cuda`).
-- `NVOPT`: nvcc flags (default `-O3 -arch=$(GPUARCH) -fmad=false`). Keep `-fmad=false`: with nvcc's default
+- `NVOPT`: nvcc flags (default `-O3 -arch=$(GPUARCH) -fmad=false -diag-suppress 177`, the last silencing the unused-temporary warnings of the FORM kernels). Keep `-fmad=false`: with nvcc's default
   fused multiply-adds, 11 g4 kernels lose exact cancellations between terms (g4_191, 149, 90, 258, 54, 122,
   03, 39, 241, 174, 01; g4_191 gave -1.46e7 instead of -0.0516). Without fusing, all 269 g4 graphs agree with the
   CPU to 7.9e-9 at h=3 N=33 eps=1e-8. It costs 5-10%.
-- `GPUCLASSES`: classes that get GPU kernels (default: those of `g2 g3 v3 g4` in `CLASSES`).
+- `GPUCLASSES`: classes that get GPU kernels (default: those of `g2 g3 v3 g4 g5` in `CLASSES`).
 - `DDVGRAPHS`, `DDVOPT`: the graphs that get the SIMD double-double fallback (default: all of them), and its
   compiler flags (default `-O1 -march=native`).
 
@@ -113,6 +113,32 @@ loop:  prep(j+1); submit(j+1);  wait(j); check + fallback + sum(j)
 
 All host work stays in one thread in cell order. The sums, the kept set and the checkpoints are therefore
 those of a serial pass, whatever the batch size. The frontiers of the coarse grow are GPU batches too.
+
+### The grow on the GPU (`grow()` in `driver/sumkey.h`)
+
+The grow (the coarse level, and the whole sum at top = 0) sends each frontier to the GPU in chunks of
+`SQ_GROWCHUNK` (4M) points, two in flight: chunk c+1 is unpacked and submitted before chunk c is
+finished, so the host's tests and double-double fallback for one chunk overlap the GPU's evaluation of
+the next. At top = 0 the |.|-sum skip (`SINCQED_GROWSKIP`) is on, as in the CPU build: the skipped points
+are evaluated without the |.| sums on the GPU too. Values, evaluation counts and skip counts are the
+same as the CPU build's (checked with a CPU stand-in for `gpu.cu`, also with 64k-point chunks so that
+every layer takes several). The hash bookkeeping between frontiers stays on the CPU and does not overlap
+the GPU.
+
+## Five loops (`g5`)
+
+The g5 kernels go through `gpugen.py` like the others. `tools/splitform.py` cuts their large FORM
+blocks into pieces (`<node>_cB_K`); `gpugen.py` makes these real calls (`__noinline__`) rather than
+inlining them, which for g5_3086 (sm_80, CUDA 13.4) takes the kernel from a 51 KB stack frame and
+119 KB of spill stores to 31 KB and 18 KB (plus 1-3 KB per piece). One g5 kernel compiles in about
+2.5 minutes with nvcc using 2.8 GB, so `make -j` is limited by the CPU kernels (about 4 GB each), not by
+nvcc.
+
+```
+make GPU=1 -j2 CLASSES="g2 g5" QOPT=O0          # g5 kernels from kernels-ext/g5 (MAXD = 14)
+SINCQED_GPU=1 bin/sincqed-gpu run 2.4 41 1e-5 0 g5_3086
+```
+
 
 ### Children made on the GPU at the last level (`prepcells()` in `driver/sum.c`)
 

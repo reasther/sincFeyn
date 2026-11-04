@@ -54,7 +54,10 @@ def add_sqab(body, qual_once, qual_many):
         ncalls = len(re.findall(r'FN\(%s\)\(' % re.escape(n), body)) - 1
         m = re.search(r'^static (REAL|void) FN\(%s\)\(' % re.escape(n), body, re.M)
         c = close_paren(body, m.end() - 1)
-        q = qual_once if ncalls <= 1 else qual_many
+        # the pieces tools/splitform.py cuts a large FORM block into (<node>_cB_K, five loops) are called
+        # once each, but inlining them all into one kernel gave g5_3086 a 51 KB stack frame and 119 KB of
+        # spill stores; as real calls it is 31 KB and 18 KB (+ ~1-3 KB per piece)
+        q = qual_once if ncalls <= 1 and not re.search(r'_c\d+_\d+$', n) else qual_many
         body = body[:m.start()] + 'static %s %s FN(%s)(' % (q, m.group(1), n) + body[m.end():c] + ', const int SQ_AB' + body[c:]
     return body, names
 

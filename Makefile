@@ -187,10 +187,11 @@ NVCC    ?= $(CUDA)/bin/nvcc
 GPUARCH ?= native
 # -fmad=false: nvcc's default fused multiply-add breaks exact cancellations in 11 g4 kernels
 # (g4_191 came out at -1.46e7 instead of -0.0516); without fusing all 269 agree with the CPU.  Costs 5-10%.
-NVOPT   ?= -O3 -arch=$(GPUARCH) -fmad=false
+# -diag-suppress 177: the FORM blocks declare temporaries they do not use; a g5 kernel gave 56 MB of such warnings
+NVOPT   ?= -O3 -arch=$(GPUARCH) -fmad=false -diag-suppress 177
 PYTHON  ?= python3
 GB := $(B)/gpu
-GPUCLASSES ?= $(filter g2 g3 v3 g4,$(CLASSES))
+GPUCLASSES ?= $(filter g2 g3 v3 g4 g5,$(CLASSES))
 GPUNAMES := $(foreach c,$(GPUCLASSES),$(patsubst $(call kdir,$(c))/%.c,%,$(wildcard $(call kdir,$(c))/*.c)))
 GPUDRV := $(DRV:%=$(GB)/drv_%.o)
 # The double-double fallback (points whose terms cancel beyond double precision) stays on the CPU, but
