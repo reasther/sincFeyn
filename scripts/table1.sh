@@ -5,7 +5,7 @@
 #   sh scripts/table1.sh            # builds bin/sincqed with g2 if needed; ~15 s on 4 cores, any machine
 #
 # Settings: H [0.6], EPS [1e-20], WINDOW [72] (N = 2 ceil(WINDOW/h) + 1; with |z| <= 48 the crossed and
-# ladder graphs stop near 1e-10 below h = 0.7), OUT [table1_h$H.txt] for the raw results file.
+# ladder graphs stop near 1e-10 below h = 0.7; capped at N = 249, see below), OUT [table1_h$H.txt] for the raw results file.
 # Values include the mirror weights.  The residual is (S - exact)/exact; for the sum, against
 # A1^(4) = 197/144 + pi^2/12 - pi^2 ln2/2 + 3 zeta(3)/4 = -0.328478965579193.
 # There are no timings in the table, so any machine will do (Linux 4 cores, 2026-11-04: Pi2 +1046.06,
@@ -18,7 +18,9 @@ if [ ! -x "$BIN" ] || ! "$BIN" list 2>/dev/null | grep -q '^  g2_00 '; then
   echo "-- building bin/sincqed with g2 (set CC for macOS, e.g. CC=gcc-14)"
   ( cd "$ROOT" && make -j4 CLASSES="g2" ${CC:+CC=$CC} >/dev/null )
 fi
-N=$(awk -v h=$H -v w=$WINDOW 'BEGIN{ n = w / h; m = (n == int(n)) ? n : int(n) + 1; print 2 * m + 1 }')
+# N <= 249: the driver stores lattice indices in 8 bits and rounds K = (N-1)/2 up to a multiple of 4 at
+# top = 1, so K <= 124.  Below h ~ 0.58 this narrows the window (h = 0.5: |z| <= 62).
+N=$(awk -v h=$H -v w=$WINDOW 'BEGIN{ n = w / h; m = (n == int(n)) ? n : int(n) + 1; if (m > 124) m = 124; print 2 * m + 1 }')
 echo "-- sincqed run $H $N $EPS 1 all2"; rm -f "$OUT"     # the driver appends to an existing results file
 SINCQED_RESULTS="$OUT" SINCQED_LOG=/dev/null "$BIN" run "$H" "$N" "$EPS" 1 all2 > /dev/null
 awk -v h=$H -v N=$N -v eps=$EPS '
