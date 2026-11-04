@@ -44,7 +44,7 @@ vacuum-polarisation classes v4, w4, pi6) from an empty Dirac-table cache and com
 
 ## 2. Two loops (Table I, Fig. 2)
 
-Table I (h = 0.6), with the residuals already divided out (about 15 seconds):
+Table I (h = 0.55, N = 249), with the residuals already divided out (about 20 seconds):
 
 ```
 sh scripts/table1.sh
