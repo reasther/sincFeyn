@@ -1,15 +1,11 @@
 # sincFeyn
 
-Sinc-function evaluation of the QED vertex graphs that contribute to the electron anomalous
-magnetic moment, at two, three and four loops.
+This code evaluates QED vertex graphs that contribute to the electron anomalous magnetic moment. It has been tested with diagrams up to 4 loops and a sampling of 5 loop diagrams. 
 
 Each graph is written as an integral over Schwinger parameters. Its ultraviolet and infrared
 divergences are removed point by point with Volkov's forest formula. The integral is then
 evaluated as a pruned, hierarchical trapezoid ("Sinc") sum in z = log s, whose error falls
-exponentially in 1/h. This follows Easther, Guralnik and Hahn
-([hep-ph/9903255](https://arxiv.org/abs/hep-ph/9903255),
-[hep-ph/9912255](https://arxiv.org/abs/hep-ph/9912255),
-[hep-ph/0010143](https://arxiv.org/abs/hep-ph/0010143)).
+exponentially in 1/h. 
 
 The method and the results are described in the accompanying paper. This repository holds
 everything needed to reproduce its numbers:
@@ -19,6 +15,7 @@ everything needed to reproduce its numbers:
   installed);
 - the source transformations that make the kernels fast;
 - the run scripts.
+
 
 ## What it computes
 
@@ -57,6 +54,11 @@ also be regenerated (FORM needed; a few hours on 16 cores):
 sh generator/regen.sh kernels-ext 16 g4 lbl4
 ```
 
+## Five-loop kernels
+
+We provide code to generate these from scratch.  Each diagram (with ambitious optimisation) took around 20 minutes of serial single-threaded processing with FORM on a desktop. 
+
+
 ## Documentation
 
 | file | contents |
@@ -90,8 +92,16 @@ Anthropic), working under the direction of Richard Easther, who specified the me
 tests and decided what to keep. The evidence that it is right is the set of independent checks
 described in the paper: agreement with the analytic two- and three-loop coefficients and with
 exactly known gauge-invariant subsets, pointwise finiteness (scaling) tests of every subtracted
-integrand, and byte-for-byte regeneration of the kernels. All of these can be rerun from this
-repository.
+integrand, and external checks of the summations for low dimension graphs. The information needed
+to reproduce the results can be found in this repository.
+
+## Method
+
+The overall method builds on work by Easther, Guralnik, Hahn, Petrov and Wang, from 1999-2001
+([hep-ph/9903255](https://arxiv.org/abs/hep-ph/9903255),
+[hep-ph/9912255](https://arxiv.org/abs/hep-ph/9912255),
+[hep-ph/0010143](https://arxiv.org/abs/hep-ph/0010143)).
+
 
 ## Citing
 
