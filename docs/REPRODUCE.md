@@ -44,8 +44,17 @@ vacuum-polarisation classes v4, w4, pi6) from an empty Dirac-table cache and com
 
 ## 2. Two loops (Table I, Fig. 2)
 
+Table I (h = 0.55, N = 249), with the residuals already divided out (about 20 seconds):
+
+```
+sh scripts/table1.sh
+```
+
 Every two-loop graph is compared with its exact value in Volkov's subtraction scheme (the
-closed forms are in Table I and in `driver/graphs.c`):
+closed forms are in Table I and in `driver/graphs.c`). Fig. 2 is the same comparison over a range of h;
+`sh scripts/fig2.sh` runs h = 1.60 ... 0.55 in steps of 0.01 (about 6 minutes on 4 cores) and writes the
+signed residuals of every term and of A1^(4) to `fig2/fig2.tsv` for plotting. The self-energy residual
+changes sign between h = 1.21 and 1.20, and the A1^(4) residual between 1.10 and 1.09. By hand:
 
 ```
 for h in $(seq 1.60 -0.02 0.60); do
