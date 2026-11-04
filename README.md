@@ -56,7 +56,7 @@ sh generator/regen.sh kernels-ext 16 g4 lbl4
 
 ## Five-loop kernels
 
-We provide code to generate these from scratch.  Each diagram (with ambitious optimisation) took around 20 minutes of serial single-threaded processing with FORM on a desktop. 
+We provide code to generate these from scratch.  Each diagram (with ambitious optimisation) took around 20 minutes of serial single-threaded processing with FORM on a desktop, using FORM. These are stored in `kernels-ext/` by default. 
 
 
 ## Documentation
