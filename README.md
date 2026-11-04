@@ -1,8 +1,14 @@
 # sincFeyn
 
-Sinc-function evaluation of the QED vertex graphs that contribute to the electron anomalous
-magnetic moment, at two, three and four loops, and a sample of five-loop graphs. The overall 
-summation code can be extended to other scenarios. 
+The code implements Sinc-function based evaluations of Feynman diagrams. It currently focuses on 
+the QED vertex graphs that contribute to the electron anomalous magnetic moment, at two, three and
+four loops, and a sample of five-loop graphs but the overall summation code can be extended to 
+other scenarios. 
+
+This code should be a regarded as "beta" software and, as currently constituted, is primarily intended
+to be a "proof of concept" implementation of Sinc function integration for nontrivial diagrams. 
+
+The author welcomes feedback and suggestions! 
 
 Each graph is written as an integral over Schwinger parameters. Its ultraviolet and infrared
 divergences are removed point by point with Volkov's forest formula. The integral is then
