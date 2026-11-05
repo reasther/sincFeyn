@@ -1,0 +1,24 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    # CPU build only: the hosted runners have no GPU (the CUDA back end is tested by hand, docs/GPU.md).
+    # g2 and g3 are the classes tests/run_tests.sh needs; their kernels are in git.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build bin/sincqed (g2 g3)
+        run: make CLASSES="g2 g3" -j"$(nproc)"
+      - name: Regression tests
+        run: make test
