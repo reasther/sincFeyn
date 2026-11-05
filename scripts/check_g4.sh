@@ -11,7 +11,8 @@
 # mirror-invariant Cheng-Wu photon, 67 graphs differ, 65 of them with a smaller D), or the 2026-10-23
 # ones (kernels-g4_2026-10-23.tar.xz or generator/regen.sh: the 2026-10-21 kernels with the one-point
 # u rule and the packed-point wrapper, every file differs, same D as 2026-10-21), or the 2026-10-25
-# ones (kernels-g4_2026-10-25.tar.xz: line identifications, every file differs, same D); a
+# ones (kernels-g4_2026-10-25.tar.xz: line identifications, every file differs, same D), or the v0.9.0
+# release (kernels-g4.tar.xz: generated with GEN_HBASIS=2, the generator default since 2026-10-31); a
 # mix of the two is reported.  A kernel whose sha256 differs from both is reported but passes: kernels
 # regenerated with FORM differ in the order of subexpressions only.  Exit status 0 if everything passes.
 set -u
@@ -19,14 +20,14 @@ TAB=$(dirname "$0")/g4_kernels.tsv
 KD=${KD:-$( [ -d kernels-ext/g4 ] || [ ! -d kernels/g4 ] && echo kernels-ext/g4 || echo kernels/g4 )}
 BIN=${1:-}
 if command -v sha256sum >/dev/null 2>&1; then SHA="sha256sum"; else SHA="shasum -a 256"; fi
-fail=0; nid=0; nre=0; n=0; nold=0; nnew=0; nh10=0; nh21=0; nh23=0; nh25=0
+fail=0; nid=0; nre=0; n=0; nold=0; nnew=0; nh10=0; nh21=0; nh23=0; nh25=0; nh11=0
 [ -d "$KD" ] || { echo "FAIL  no directory $KD (unpack the g4 release archive into kernels-ext/)"; exit 1; }
 # anything in $KD that is not one of the 269 (e.g. Finder copies "g4_00 2.c", or old Mac-numbered files)
 for f in "$KD"/*; do
     b=$(basename "$f"); g=${b%.c}
     if [ "$b" = "$g" ] || ! grep -q "^$g	" "$TAB"; then echo "FAIL  unexpected file $f"; fail=$((fail+1)); fi
 done
-while IFS='	' read -r g label D w sha Dm sham sh23 sh25; do
+while IFS='	' read -r g label D w sha Dm sham sh23 sh25 sh11; do
     case $g in \#*) continue;; esac
     n=$((n+1)); f="$KD/$g.c"
     if [ ! -f "$f" ]; then echo "FAIL  $g: missing $f"; fail=$((fail+1)); continue; fi
@@ -42,9 +43,10 @@ while IFS='	' read -r g label D w sha Dm sham sh23 sh25; do
     if [ "$h" = "$sha" ]; then nid=$((nid+1)); [ "$sha" = "$sham" ] || nh10=$((nh10+1))
     elif [ "$h" = "$sham" ]; then nid=$((nid+1)); nh21=$((nh21+1))
     elif [ "$h" = "$sh23" ]; then nid=$((nid+1)); nh23=$((nh23+1)); [ "$sha" = "$sham" ] || nh21=$((nh21+1))
-    elif [ "$h" = "$sh25" ]; then nid=$((nid+1)); nh25=$((nh25+1)); [ "$sha" = "$sham" ] || nh21=$((nh21+1)); else nre=$((nre+1)); fi
+    elif [ "$h" = "$sh25" ]; then nid=$((nid+1)); nh25=$((nh25+1)); [ "$sha" = "$sham" ] || nh21=$((nh21+1))
+    elif [ "$h" = "$sh11" ]; then nid=$((nid+1)); nh11=$((nh11+1)); [ "$sha" = "$sham" ] || nh21=$((nh21+1)); else nre=$((nre+1)); fi
 done < "$TAB"
-echo "kernels: $n checked, $fail failed; of the files present, $nid identical to a FORM release ($nh23 of them the 2026-10-23 one-point packed kernels, $nh25 the 2026-10-25 line-identification ones), $nre differ (labels match)"
+echo "kernels: $n checked, $fail failed; of the files present, $nid identical to a FORM release ($nh23 of them the 2026-10-23 one-point packed kernels, $nh25 the 2026-10-25 line-identification ones, $nh11 the v0.9.0 release), $nre differ (labels match)"
 echo "of the 67 graphs that changed on 2026-10-21: $nh21 are the new kernels, $nh10 the 2026-10-10 ones (by sha256; D: $nnew new, $nold old)"
 [ $nh21 -eq 0 ] || [ $nh10 -eq 0 ] || echo "NOTE  $KD mixes 2026-10-10 and 2026-10-21 kernels (both are exact)"
 [ $fail -eq 0 ] || { echo "$KD is NOT the FORM group V set: fix it before running"; exit 1; }
