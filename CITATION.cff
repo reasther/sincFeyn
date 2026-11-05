@@ -7,7 +7,7 @@ authors:
     affiliation: "University of Auckland"
 license: MIT
 version: "1.1.0"
-date-released: "2026-11-03"
+date-released: "2026-11-05"
 repository-code: "https://github.com/reasther/sincFeyn"
 abstract: >-
   Two-, three- and four-loop QED contributions to the electron anomalous magnetic moment, and a
