@@ -9,6 +9,7 @@
 # Environment (all optional):
 #   BIN=bin/sincqed       binary; on the GPU machine e.g. BIN=bin/sincqed-gpu
 #   PAR=1                 graphs run at the same time (each one is a separate process)
+#                         with OMP_NUM_THREADS = cores/PAR each (unless OMP_NUM_THREADS is set)
 #   BUDGET=0              hours; 0 = no limit (stop it by hand).  Otherwise no new h level is started
 #                         if it is predicted to end after BUDGET hours
 #   LADDER="h:eps ..."    the h values and their eps (default below)
@@ -33,6 +34,13 @@ GRAPHS=${GRAPHS:-"g3_lbl g3_10 g3_20 g3_00 g3_05 g3_14 g3_22 g3_24 g3_26 g3_13 g
  g3_17 g3_21 g3_19 g3_01 g3_06 g3_11 g3_04 g3_08 g3_16 g3_25 g3_07 g3_09
  v3_p4Vc v3_p4Vm v3_01 v3_05 v3_02 v3_06 v3_07 v3_03 v3_04 v3_p4Sm v3_00 v3_p4Sc"}
 export SINCQED_PREDICT=${SINCQED_PREDICT:-0}
+# PAR processes share the cores: unless OMP_NUM_THREADS is set, each gets cores/PAR threads.  With
+# every process on all cores the h=1.5 scan (PAR=4, A100 + 28 cores) took 160 s instead of 20 s.
+if [ "$PAR" -gt 1 ] && [ -z "${OMP_NUM_THREADS:-}" ]; then
+    NCPU=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo "$PAR")
+    OMP_NUM_THREADS=$((NCPU / PAR)); [ "$OMP_NUM_THREADS" -ge 1 ] || OMP_NUM_THREADS=1
+    export OMP_NUM_THREADS
+fi
 [ -x "$BIN" ] || { echo "no binary $BIN (build first, or set BIN)"; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"
