@@ -120,6 +120,9 @@ static inline int SFX(hhas)(const KS *H, long mask, KT y){
     return 0;
 }
 
+#ifndef SQ_GROWCHUNK
+#define SQ_GROWCHUNK (1L << 22)       /* points per GPU chunk in the grow (a small value tests the two-slot pipeline) */
+#endif
 /* support-following scan at level lev (step 2^lev): start at z = 0 and grow through axis neighbours
  * while |f| is above thr = eps_rel * (running sum|f|); points below it are evaluated (the boundary)
  * but not expanded.  Cost ~ support size x 2D, not (box width)^D.  Same outputs as scan(); *A is
@@ -162,10 +165,30 @@ static int SFX(grow)(int lev, double eps_rel, vec_t *keep, double *S, double *A,
         /* gs > 0 (top = 0 only, where no refinement follows): a frontier point skips the |.| sums when the
          * point that reached it was checked and not near the fallback, or skipped fewer than gs generations
          * after such a point (the generation count is in PFLAG); 0 = every point checked, as before */
-        int gs = lev == 0 && ABSKIP && DIM < MAXD && !USEGPU ? GROWSKIP : 0;
+        int gs = lev == 0 && ABSKIP && DIM < MAXD ? GROWSKIP : 0;
         unsigned char *sk = (unsigned char*)calloc(fr.n, 1);
-        if(USEGPU){ int (*fk)[MAXD] = (int(*)[MAXD])malloc(fr.n*sizeof *fk); for(long i = 0; i < fr.n; i++) ptget(&fr.p[i], fk[i]);
-            eval_batch_gpu(fr.n, (const int(*)[MAXD])fk, NULL, nr, v, &q, &u); free(fk); DONE += fr.n; grow_progress(lay, DONE, tw0, keep->n, fr.n, fr.n, sk0); }
+        if(USEGPU){              /* chunks of CE points, two in flight: chunk c+1 is unpacked and submitted before
+                                  * chunk c is finished (tests, double-double fallback on the CPU), so the host
+                                  * work overlaps the GPU.  Same values as one batch: each point is evaluated alone */
+            const long CE = SQ_GROWCHUNK; long ns = 0, nc = (fr.n + CE - 1)/CE; double lsum = 0;
+            int (*fk)[MAXD] = (int(*)[MAXD])malloc(2*(fr.n < CE ? fr.n : CE)*sizeof *fk);   /* one buffer per slot */
+            for(long c = 0; c <= nc; c++){
+                if(c < nc){              /* unpack and submit chunk c */
+                    long c0 = c*CE, m = fr.n - c0 < CE ? fr.n - c0 : CE; int (*f)[MAXD] = fk + (c & 1)*CE;
+                    #pragma omp parallel for schedule(static) reduction(+:ns)
+                    for(long i = 0; i < m; i++){ ptget(&fr.p[c0 + i], f[i]); sk[c0 + i] = gs && fr.p[c0 + i].k[PFLAG] > 0; ns += sk[c0 + i]; }
+                    eval_gpu_submit(c & 1, m, (const int(*)[MAXD])f, gs ? sk + c0 : NULL);
+                }
+                if(c > 0){               /* finish chunk c-1 while the GPU computes chunk c */
+                    long b = c - 1, c0 = b*CE, m = fr.n - c0 < CE ? fr.n - c0 : CE;
+                    eval_gpu_finish(b & 1, m, (const int(*)[MAXD])(fk + (b & 1)*CE), gs ? sk + c0 : NULL, nr + c0, v + c0, &q, &u);
+                    double cs = 0;       /* progress display only */
+                    #pragma omp parallel for schedule(static) reduction(+:cs)
+                    for(long i = 0; i < m; i++) cs += v[c0 + i];
+                    lsum += cs*pw; DONE += m; grow_progress(lay, DONE, tw0, keep->n, c0 + m, fr.n, sk0 + lsum);
+                }
+            }
+            ABSKIPPED += ns; free(fk); }
         else if(GROWBATCH){      /* batches through eval_batch: the kernel's packed SIMD form, same values */
             long ns = 0, qq = 0; double uu = 0, lsum = 0; const long CE = 1L << 20;
             int (*fk)[MAXD] = (int(*)[MAXD])malloc((fr.n < CE ? fr.n : CE)*sizeof *fk);   /* one chunk's coordinates at a time */
