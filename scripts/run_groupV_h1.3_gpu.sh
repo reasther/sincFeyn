@@ -24,6 +24,13 @@ PAR=${PAR:-2}
 H=${H:-1.3} N=${N:-65} EPS=${EPS:-1e-11}
 export SINCQED_PREDICT=${SINCQED_PREDICT:-1}
 export SINCQED_DDSLACK=${SINCQED_DDSLACK:-100}
+# PAR processes share the cores: unless OMP_NUM_THREADS is set, each gets cores/PAR threads.  With
+# every process on all cores the h=1.5 scan (PAR=4, A100 + 28 cores) took 160 s instead of 20 s.
+if [ "$PAR" -gt 1 ] && [ -z "${OMP_NUM_THREADS:-}" ]; then
+    NCPU=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo "$PAR")
+    OMP_NUM_THREADS=$((NCPU / PAR)); [ "$OMP_NUM_THREADS" -ge 1 ] || OMP_NUM_THREADS=1
+    export OMP_NUM_THREADS
+fi
 GRAPHS=${GRAPHS:-"
 g4_155 g4_219 g4_118 g4_229 g4_226 g4_153 g4_148 g4_213 g4_216 g4_22 g4_152 g4_119 g4_03 g4_121 g4_174
 g4_107 g4_208 g4_222 g4_193 g4_137 g4_150 g4_211 g4_230 g4_151 g4_189 g4_198 g4_268 g4_170 g4_181 g4_238

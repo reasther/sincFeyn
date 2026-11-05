@@ -59,7 +59,10 @@ Run-time environment variables:
 - `SINCQED_DDSLACK` and the other `SINCQED_*` settings work as in the CPU build.
 
 **Several graphs at once.** With the GPU, `PAR=4` (four graphs at a time) is fastest for the three-loop
-scan, because the processes keep the GPU busy while the others are in host-only phases. Mind the memory,
+scan, because the processes keep the GPU busy while the others are in host-only phases. The processes
+must share the cores: `run3_hscan.sh` and `run_groupV_h1.3_gpu.sh` give each `OMP_NUM_THREADS` =
+cores/`PAR` unless it is already set. With every process on all 28 cores, the h = 1.5 scan took 160 s at
+`PAR=4`. Split 4 × 7 it takes 20 s, and `PAR=1` takes 61 s (2026-11-05, same totals). Mind the memory,
 though. At h=0.7 each of the 17 large D=7 graphs of all3 needs about 35 GB, with about 55 GB peaks in
 `dilate()`. On a 93 GB machine those must run one at a time (`GRAPHS=... PAR=1`).
 
