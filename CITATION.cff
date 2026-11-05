@@ -8,6 +8,7 @@ authors:
 license: MIT
 version: "0.9.0"
 date-released: "2026-11-05"
+doi: "10.5281/zenodo.23975727"
 repository-code: "https://github.com/reasther/sincFeyn"
 abstract: >-
   Two-, three- and four-loop QED contributions to the electron anomalous magnetic moment, and a
