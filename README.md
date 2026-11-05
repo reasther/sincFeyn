@@ -1,5 +1,7 @@
 # sincFeyn
 
+[![DOI](https://zenodo.org/badge/1436884324.svg)](https://doi.org/10.5281/zenodo.23975727)
+
 The code implements Sinc-function based evaluations of Feynman diagrams. It currently focuses on 
 the QED vertex graphs that contribute to the electron anomalous magnetic moment, at two, three and
 four loops, and a sample of five-loop graphs but the overall summation code can be extended to 
