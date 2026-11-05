@@ -12,6 +12,8 @@
 # OUTDIR/check_four_loop.txt.  Needs python3 with numpy and sympy.
 set -e
 OLD=${1:?usage: sh tools/check_four_loop.sh EXISTING_KERNELS_DIR [JOBS] [OUTDIR]}
+[ -d "$OLD" ] || { echo "no directory $OLD"; exit 1; }
+OLD=$(cd "$OLD" && pwd)    # absolute: the comparison below runs from inside OUTDIR
 JOBS=${2:-$(nproc 2>/dev/null || sysctl -n hw.ncpu)}
 OUT=${3:-./regen4}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
