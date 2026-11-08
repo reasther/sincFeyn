@@ -4,6 +4,8 @@
 # predicted to overrun a time budget.
 #
 #   sh scripts/run3_hscan.sh [OUTDIR]            (default OUTDIR = runs3)
+#   MODE=fixed sh scripts/run3_hscan.sh          Fig. 4, fixed eps 1e-15, h = 2.10 ... 1.00 (runs3_fixed)
+#   MODE=matched sh scripts/run3_hscan.sh        Fig. 4, matched eps (runs3_matched)
 #   sh scripts/sum3.sh [OUTDIR]                  table of totals per h (also run after every level)
 #
 # Environment (all optional):
@@ -12,7 +14,10 @@
 #                         with OMP_NUM_THREADS = cores/PAR each (unless OMP_NUM_THREADS is set)
 #   BUDGET=0              hours; 0 = no limit (stop it by hand).  Otherwise no new h level is started
 #                         if it is predicted to end after BUDGET hours
-#   LADDER="h:eps ..."    the h values and their eps (default below)
+#   LADDER="h:eps ..."    the h values and their eps (default below); overrides MODE
+#   MODE=fixed|matched    the Fig. 4 ladders: h = HMAX, HMAX-HSTEP, ..., HMIN (defaults 2.10, 0.05, 1.00) with
+#                         eps = EPS at every h (fixed, default 1e-15) or eps = EPS0 (h/H0)^P (matched,
+#                         defaults 1e-11, 1.5, 10).  Default OUTDIR runs3_fixed / runs3_matched.
 #   ZMAX=48               window |z| <= ZMAX at every h (N is chosen from it)
 #   GRAPHS="..."          graph names (default: all of all3, most expensive first)
 #   GROWTH=3              assumed time ratio between successive levels until two have been timed
@@ -23,12 +28,20 @@
 # finished h (h eps N seconds).  Rerunning the same command resumes: graphs with a result are
 # skipped, and a graph that was killed restarts from its checkpoint (in OUTDIR/h<h>/).
 set -u
-OUT=${1:-runs3}
+MODE=${MODE:-}
+OUT=${1:-runs3${MODE:+_$MODE}}
 BIN=${BIN:-bin/sincqed}
 PAR=${PAR:-1}
 BUDGET=${BUDGET:-0}
 ZMAX=${ZMAX:-48}
 GROWTH=${GROWTH:-3}
+if [ -n "$MODE" ] && [ -z "${LADDER:-}" ]; then
+    case $MODE in fixed|matched) ;; *) echo "MODE must be fixed or matched"; exit 1;; esac
+    LADDER=$(awk -v a="${HMAX:-2.10}" -v b="${HMIN:-1.00}" -v s="${HSTEP:-0.05}" -v m="$MODE" -v e="${EPS:-1e-15}" \
+        -v e0="${EPS0:-1e-11}" -v h0="${H0:-1.5}" -v p="${P:-10}" 'BEGIN{
+        n = int((a - b)/s + 0.5);
+        for(i = 0; i <= n; i++){ h = a - i*s; x = (m == "fixed") ? e : e0*(h/h0)^p; printf "%.2f:%.2g ", h, x } }')
+fi
 LADDER=${LADDER:-"1.5:1e-10 1.4:1e-10 1.3:1e-11 1.2:1e-11 1.1:1e-12 1.0:1e-12 0.9:1e-13 0.8:1e-14 0.7:1e-15"}
 GRAPHS=${GRAPHS:-"g3_lbl g3_10 g3_20 g3_00 g3_05 g3_14 g3_22 g3_24 g3_26 g3_13 g3_02 g3_03 g3_15 g3_18 g3_23 g3_27 g3_12
  g3_17 g3_21 g3_19 g3_01 g3_06 g3_11 g3_04 g3_08 g3_16 g3_25 g3_07 g3_09
