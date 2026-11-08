@@ -96,16 +96,18 @@ bin/sincqed scale GRAPH                      # finiteness (scaling) test of the 
 
 | script | what it runs |
 |---|---|
-| `scripts/scan2.sh` | the two-loop graphs over a range of h (wraps `scripts/convergence.sh`; exact values in `scripts/refs.tsv`) |
-| `scripts/run3_hscan.sh [OUTDIR]` | every three-loop graph on a ladder of h (`LADDER="h:eps ..."`), resumable; `scripts/sum3.sh` tabulates the totals |
-| `scripts/run3_hfine.sh [OUTDIR]` | the fine three-loop ladder, h = 1.50 ... 1.00 in steps of 0.01, then 0.95 ... 0.80 |
+| `scripts/table1.sh` | Table I: the two-loop residuals at h = 0.55 |
+| `scripts/fig2.sh [OUTDIR]` | Fig. 2: the two-loop residuals for h = 1.60 ... 0.55, as one TSV |
+| `scripts/run3_hscan.sh [OUTDIR]` | every three-loop graph on a ladder of h (`MODE=fixed` or `matched` for Fig. 4, or `LADDER="h:eps ..."`), resumable; `scripts/sum3.sh` tabulates the totals |
 | `scripts/check_g4.sh` | checks a g4 kernel tree (labels, dimensions, weights) and, with a binary, four reference values |
-| `scripts/run_groupV_h1.3_gpu.sh` | group V at h = 1.3 on a GPU |
-| `scripts/regen_all.sh OUTDIR` | regenerate every kernel class |
-| `scripts/regen_update.sh OUTDIR` | regenerate every kernel class and the five-loop kernels in use, install them (old ones kept in OUTDIR/previous), rewrite kernels/SHA256SUMS, rebuild |
+| `scripts/run_groupV.sh` | group V (all 269 g4 graphs) at one or more h (`HS="..."`), eps matched to h; `scripts/sum_groupV.py` gives the total |
+| `scripts/fig4.py` | Fig. 4: totals, errors and cost from `data/g3` and `data/g4` |
 | `scripts/run5.sh GRAPH [H] [EPS]` | one five-loop graph, from nothing to a value compared with Volkov |
 | `scripts/run5batch.sh LIST [H] [EPS]` | a list of five-loop graphs: missing kernels generated together at the start, one serial build, then each run |
-| `scripts/compare5.py SUPPDIR [RESULTS ...]` | finished five-loop results against Volkov 2019, with the abcdeeabcd class sum per (h, eps) |
+| `scripts/run5_hscan.sh` | the five-loop h scan behind Fig. 5; `scripts/fit5.py` fits it, `scripts/plot5_cost.py` draws Fig. 5 |
+| `scripts/regen_all.sh OUTDIR` | regenerate every kernel class |
+| `scripts/regen_update.sh OUTDIR` | regenerate every kernel class and the five-loop kernels in use, install them (old ones kept in OUTDIR/previous), rewrite kernels/SHA256SUMS, rebuild |
+| `scripts/pack_release.sh` | the kernel archives for a GitHub release |
 
 The header of each script lists its environment variables.
 

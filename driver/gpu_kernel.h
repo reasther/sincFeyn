@@ -1,4 +1,4 @@
-/* gpu_kernel.h -- included by the CUDA kernels that scripts/gpugen.py makes from kernels/<class>/*.c.
+/* gpu_kernel.h -- included by the CUDA kernels that tools/gpugen.py makes from kernels/<class>/*.c.
  * One thread per lattice node: s = e^{k h} from the host's table, w = prod(s h) in the same order as
  * lattice_node(), then f(s) in double with the |.| sums only where skip[i] == 0. */
 #pragma once

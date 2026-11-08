@@ -2,7 +2,7 @@
  * The operations of dd.h, lane by lane: Dekker/Knuth two-sum and fma two-prod (as in the QD library), the
  * "sloppy" add unless DD_IEEE_ADD, and dd op double without promoting the double, so each lane gives what
  * dd.h gives for that point.  Used by the vectorised fallback kernels made by
- * scripts/ddvgen.py: the double-double half of a graph has no branches on values (only on SQ_AB, and
+ * tools/ddvgen.py: the double-double half of a graph has no branches on values (only on SQ_AB, and
  * RABS, done here with a lane-wise select), so VW fallback points can run in lockstep.
  * VW = 8 with AVX-512, 4 with AVX2/FMA, else 2 (fma per lane). */
 #pragma once

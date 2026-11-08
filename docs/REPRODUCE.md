@@ -68,25 +68,22 @@ h = 0.7. The last column of each results file is the difference from the exact v
 of the seven diagrams differs from A1^(4) by +9e-7 at h = 1.0, +2.3e-9 at h = 0.7 and +4.3e-11
 at h = 0.6. The whole ladder takes a few minutes on 4 cores.
 
-## 3. Three loops (Fig. 4 top)
+## 3. Three loops (Fig. 4)
 
-All 41 three-loop files (72 diagrams), h = 1.50 ... 1.00 in steps of 0.01, then 0.95 ... 0.80,
-with eps tightened as h falls:
-
-```
-sh scripts/run3_hfine.sh runs3_fine      # about 15 hours on a 12-thread Apple M2 Max
-sh scripts/sum3.sh runs3_fine            # totals per h against A1^(6)
-```
-
-The h = 0.7 point:
+All 41 three-loop entries (72 diagrams) at h = 2.10, 2.05, ..., 1.00, once at fixed eps = 1e-15 and once
+with eps matched to the h error, eps = 1e-11 (h/1.5)^10:
 
 ```
-LADDER="0.70:1e-15" sh scripts/run3_hscan.sh runs3_fine
+MODE=fixed sh scripts/run3_hscan.sh          # runs3_fixed/:   about 3.7 hours on a 24-thread M2 Ultra
+MODE=matched sh scripts/run3_hscan.sh        # runs3_matched/: about 1.2 hours
+sh scripts/sum3.sh runs3_matched             # totals per h against A1^(6)
 ```
 
-The D = 7 graphs need up to about 55 GB of memory each at h = 0.7, so run them one at a time on
-a machine with less than about 128 GB. The fixed-eps series in Fig. 4 is the same
-command with `LADDER` set to every h from 2.2 to 0.7 at `1e-15`. Each level writes
+The runs in the figure are in `data/g3/` and `python3 scripts/fig4.py` tabulates them (with group V, below).
+At h = 1.00 the matched total is 1.1812457980 (eps extrapolation included), +4.3e-6 from A1^(6).
+Smaller h works the same way with an explicit ladder, e.g. `LADDER="0.70:1e-15" sh scripts/run3_hscan.sh runs3`;
+the D = 7 graphs need up to about 55 GB of memory each at h = 0.7, so run them one at a time on a machine
+with less than about 128 GB (`GRAPHS=... PAR=1`). Each level writes
 `OUTDIR/h<h>/results.txt`; the gauge-invariant sets are sums over its entries:
 
 | set | entries |
@@ -100,9 +97,9 @@ Exact values: A1^(6) = 1.181241456587 (Laporta and Remiddi), light-by-light 0.37
 the vacuum-polarisation set 0.0554291774123 (the Pi4 and Pi2Pi2 insertions). The other two sets
 are known exactly only as their sum, 0.7548069870749.
 
-On a GPU: `BIN=bin/sincqed-gpu PAR=4 sh scripts/run3_hfine.sh` ([GPU.md](GPU.md)).
+On a GPU: `BIN=bin/sincqed-gpu PAR=4 MODE=matched sh scripts/run3_hscan.sh` ([GPU.md](GPU.md)).
 
-## 4. Four loops, group V (Fig. 4 bottom)
+## 4. Four loops, group V (Fig. 4)
 
 ### Kernels
 
@@ -126,21 +123,16 @@ and lbl4 from scratch and compares them file by file with an existing tree.
 ### Runs
 
 ```
-sh scripts/run_groupV.sh                    # h = 1.5, N = 57: about 19 hours on a 24-thread M2 Ultra
-H=1.6 N=53 sh scripts/run_groupV.sh         # h = 1.6: about 14 hours
+sh scripts/run_groupV.sh                                  # h = 1.5, N = 57: about 14 hours on a 24-thread M2 Ultra
+HS="2.2 2.1 1.9 1.7 1.3" sh scripts/run_groupV.sh         # the other points of Fig. 4 (about 7 + 50 hours)
 python3 scripts/sum_groupV.py sincqed_results_groupV_h1.5.txt sincqed_groupV_h1.5.log
 ```
 
-The total is the sum over the 269 graphs of the value plus the pruning loss left at eps, which
-each graph's `eps extrapolation` log line reports. At h = 1.5 it is -2.175105, +0.0018 from Laporta's
--2.176866.
-
-The h = 1.3 point was run on an NVIDIA A100:
-
-```
-make GPU=1 -j16 CLASSES="g2 g3 g4"
-PAR=2 sh scripts/run_groupV_h1.3_gpu.sh
-```
+eps is 1e-10 for 199 graphs and 1e-11 for the other 70, both scaled by (h/1.5)^10 (`P=0` keeps them fixed).
+The total is the sum over the 269 graphs of the value plus the pruning loss left at eps, which each graph's
+`eps extrapolation` log line reports. At h = 1.5 it is -2.175054, +0.0018 from Laporta's -2.176866; at
+h = 1.3, -2.174897. The runs in the figure are in `data/g4/`; `python3 scripts/fig4.py` writes the
+Fig. 4 table (`fig4.tsv`: total, relative error and TFLOP-h per set and h) from `data/g3/` and `data/g4/`.
 
 ## 5. Four-loop lepton-loop sets
 

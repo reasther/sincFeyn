@@ -134,10 +134,10 @@ $(B)/classes.want: FORCE | $(B)
 .PHONY: FORCE
 FORCE:
 
-# per-kernel stamps and the per-class listing (scripts/kstamp.sh), refreshed while the Makefile is read so
+# per-kernel stamps and the per-class listing (tools/kstamp.sh), refreshed while the Makefile is read so
 # that make sees their new dates: each kernel object follows its own stamp, the registry the listing
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
-$(foreach c,$(CLASSES),$(if $(wildcard $(call kdir,$(c))/*.c),$(shell sh scripts/kstamp.sh $(B) $(c) $(call kdir,$(c)))))
+$(foreach c,$(CLASSES),$(if $(wildcard $(call kdir,$(c))/*.c),$(shell sh tools/kstamp.sh $(B) $(c) $(call kdir,$(c)))))
 endif
 $(B)/%.kfiles: | $(B)
 	@echo "*** no kernels for class $* in $(call kdir,$*)/: unpack its release archive there (e.g. tar xJf kernels-$*_<date>.tar.xz) or drop it from CLASSES" >&2; exit 1
@@ -179,7 +179,7 @@ clean:
 
 # ---- CUDA back end: make GPU=1 -> bin/sincqed-gpu (bin/sincqed stays the CPU build); see docs/GPU.md ----
 # The double half of each kernel in GPUCLASSES runs on the GPU; the double-double fallback stays on the
-# CPU, so the CPU kernel libraries are linked too.  build/gpu/<graph>.cu is made by scripts/gpugen.py.
+# CPU, so the CPU kernel libraries are linked too.  build/gpu/<graph>.cu is made by tools/gpugen.py.
 # Graphs of other classes (v4 w4 pi6 lbl4: not yet tested on the GPU) run on the CPU as before.
 #   make GPU=1 -j16          GPUARCH=sm_80 (A100), sm_90 (H100), ... (default: native = the GPU of this machine)
 CUDA    ?= /usr/local/cuda
@@ -195,7 +195,7 @@ GPUCLASSES ?= $(filter g2 g3 v3 g4 g5,$(CLASSES))
 GPUNAMES := $(foreach c,$(GPUCLASSES),$(patsubst $(call kdir,$(c))/%.c,%,$(wildcard $(call kdir,$(c))/*.c)))
 GPUDRV := $(DRV:%=$(GB)/drv_%.o)
 # The double-double fallback (points whose terms cancel beyond double precision) stays on the CPU, but
-# vectorised: scripts/ddvgen.py makes a SIMD version of each kernel's double-double half that runs 8
+# vectorised: tools/ddvgen.py makes a SIMD version of each kernel's double-double half that runs 8
 # points at once with AVX-512 (driver/ddv.h).  Kernels that branch on computed values (v3_p4*, w3_*)
 # get an empty stub and keep the scalar fallback.  DDVGRAPHS: the graphs that get one; DDVOPT: its
 # compiler flags (it is compiled like the QREAL half, cf. QOPT).
@@ -209,10 +209,10 @@ GPUOBJ := $(GPUNAMES:%=$(GB)/k_%.o) $(GB)/gpu.o $(GB)/registry.o
 $(GB) $(DB):
 	mkdir -p $@
 define GPU_RULES
-$(GB)/%.cu: $(call kdir,$(1))/%.c scripts/gpugen.py | $(GB)
-	$(PYTHON) scripts/gpugen.py $$< $$@
-$(DB)/%.cc: $(call kdir,$(1))/%.c scripts/ddvgen.py scripts/gpugen.py | $(DB)
-	$(PYTHON) scripts/ddvgen.py $$< $$@
+$(GB)/%.cu: $(call kdir,$(1))/%.c tools/gpugen.py | $(GB)
+	$(PYTHON) tools/gpugen.py $$< $$@
+$(DB)/%.cc: $(call kdir,$(1))/%.c tools/ddvgen.py tools/gpugen.py | $(DB)
+	$(PYTHON) tools/ddvgen.py $$< $$@
 endef
 $(foreach c,$(GPUCLASSES),$(eval $(call GPU_RULES,$(c))))
 $(DB)/%.o: $(DB)/%.cc driver/ddv.h driver/ddvk.h

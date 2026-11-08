@@ -20,11 +20,10 @@ of RAM, using CUDA 13.3 and GCC 13.3.
 make GPU=1 -j16 CLASSES="g2 g3 v3"       # bin/sincqed-gpu (the CPU kernel libraries are built and linked too)
 sh tests/run_tests.sh bin/sincqed-gpu    # the regression checks with the GPU build
 
-BIN=bin/sincqed-gpu PAR=4 sh scripts/run3_hscan.sh runs3     # the three-loop h-scan, four graphs at a time
-BIN=bin/sincqed-gpu PAR=4 sh scripts/run3_hfine.sh           # the fine h-scan (runs3_fine/)
+BIN=bin/sincqed-gpu PAR=4 MODE=matched sh scripts/run3_hscan.sh    # the three-loop h-scan, four graphs at a time
 ```
 
-Four loops, group V (all 269 g4 graphs) at h = 1.3, N = 65, eps = 1e-11: unpack the g4 release archive into
+Four loops, group V (all 269 g4 graphs): unpack the g4 release archive into
 `kernels-ext/` first, then
 
 ```
@@ -32,11 +31,11 @@ sh scripts/check_g4.sh                         # kernels-ext/g4 is the 269 FORM 
 make GPU=1 -j16 CLASSES="g2 g3 g4"             # g2 and g3 are for the regression tests
 sh tests/run_tests.sh bin/sincqed-gpu
 sh scripts/check_g4.sh bin/sincqed-gpu         # g4_73, g4_72, g4_66, g4_184 against the Mac Studio values to 1e-7
-PAR=2 sh scripts/run_groupV_h1.3_gpu.sh        # groupV_h1.3/; rerun the same command to resume
+BIN=bin/sincqed-gpu HS=1.3 sh scripts/run_groupV.sh   # rerun the same command to resume
 ```
 
-- **Requirements.** The build needs the CUDA toolkit and Python 3 (for `scripts/gpugen.py` and
-  `scripts/ddvgen.py`) in addition to GCC. The CPU build is unchanged and needs neither.
+- **Requirements.** The build needs the CUDA toolkit and Python 3 (for `tools/gpugen.py` and
+  `tools/ddvgen.py`) in addition to GCC. The CPU build is unchanged and needs neither.
 - **Build time.** About a minute for `g2 g3 v3` here.
 
 `make GPU=1` options:
@@ -60,7 +59,7 @@ Run-time environment variables:
 
 **Several graphs at once.** With the GPU, `PAR=4` (four graphs at a time) is fastest for the three-loop
 scan, because the processes keep the GPU busy while the others are in host-only phases. The processes
-must share the cores: `run3_hscan.sh` and `run_groupV_h1.3_gpu.sh` give each `OMP_NUM_THREADS` =
+must share the cores: `run3_hscan.sh` gives each `OMP_NUM_THREADS` =
 cores/`PAR` unless it is already set. With every process on all 28 cores, the h = 1.5 scan took 160 s at
 `PAR=4`. Split 4 × 7 it takes 20 s, and `PAR=1` takes 61 s (2026-11-05, same totals). Mind the memory,
 though. At h=0.7 each of the 17 large D=7 graphs of all3 needs about 35 GB, with about 55 GB peaks in
@@ -86,7 +85,7 @@ sets (for g3_00 at h = 1.5, eps = 1e-14: evaluation counts differ by 2 in 10^6, 
 
 ## How it works
 
-### The integrand on the GPU (`scripts/gpugen.py`, `driver/gpu_kernel.h`, `driver/gpu.cu`)
+### The integrand on the GPU (`tools/gpugen.py`, `driver/gpu_kernel.h`, `driver/gpu.cu`)
 
 The high-precision (QREAL) half of each kernel is a complete scalar copy of the integrand, written against
 `REAL`. `gpugen.py` compiles it with `REAL = double` into `build/gpu/<graph>.cu`:
@@ -154,7 +153,7 @@ This path is bit-identical to the node path in the same binary. It replaces abou
 nodes per three-loop graph at h=0.9. On g3_00 at h=1.1 it cut the wall time from 80 s to 54 s, and the CPU
 time by half.
 
-### The double-double fallback, vectorised (`scripts/ddvgen.py`, `driver/ddv.h`)
+### The double-double fallback, vectorised (`tools/ddvgen.py`, `driver/ddv.h`)
 
 `ddvgen.py` makes a SIMD version of each kernel's double-double half: `REAL = ddv`, a pair of 8-wide
 AVX-512 vectors (4 with AVX2). One call evaluates 8 fallback points. `ddv.h` performs the operations of

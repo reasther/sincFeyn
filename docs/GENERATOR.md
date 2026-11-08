@@ -106,7 +106,7 @@ files.
 
 ## Drawing the diagrams
 
-`python3 generator/diagrams.py docs/diagrams.tex` writes TikZ drawings of every two- and
+`python3 generator/diagrams.py diagrams.tex` writes TikZ drawings of every two- and
 three-loop diagram, each labelled with its kernel name, Volkov string and weight. Compile with
 `pdflatex`.
 

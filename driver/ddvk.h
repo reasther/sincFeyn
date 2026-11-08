@@ -1,4 +1,4 @@
-/* ddvk.h -- the SIMD double-double fallback kernels (scripts/ddvgen.py, make DDV=1, the default with GPU=1):
+/* ddvk.h -- the SIMD double-double fallback kernels (tools/ddvgen.py, make DDV=1, the default with GPU=1):
  * fv(m, sf, v, ab) evaluates m <= w points (sf: m x D Sinc variables) in double-double, one per lane, and
  * returns v = (double) f and ab = (double) sum|terms| per point, as the scalar FQ does. */
 #pragma once
