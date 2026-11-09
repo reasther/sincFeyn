@@ -1,0 +1,29 @@
+basis: 1, pi^2, pi^2 log2, zeta3
+
+corner           -0.06402094134469101   (demo h=0.5 eps=1e-20; est. error 1.5e-14, ~12 digits)
+  PSLQ: - 55/24 + pi^2/18 + pi^2 log2/3 - zeta3/2    relation [72, 165, -4, -24, 36], residual -8.19e-15
+  known: -55/24 + pi^2/18 + pi^2 log2/3 - zeta3/2 = -0.064020941344682815593, Sinc - known = -8.19e-15
+
+self-energy_demo -0.58997802228274199   (demo h=0.5 eps=1e-20; est. error 1.5e-14, ~13 digits)
+  PSLQ: - 1/24 - pi^2/18    relation [72, 3, 4, 0, 0], residual 1.55e-16
+  known: -1/24 - pi^2/18 = -0.58997802228274214549, Sinc - known = 1.55e-16
+
+crossed          -0.46764544609359909   (demo h=0.5 eps=1e-20; est. error 1.5e-14, ~13 digits)
+  PSLQ: 1/6 + 13 pi^2/36 - 5 pi^2 log2/6 + 5 zeta3/4    relation [36, -6, -13, 30, -45], residual 1.46e-14
+  known: 1/6 + 13 pi^2/36 - 5 pi^2 log2/6 + 5 zeta3/4 = -0.4676454460936136516, Sinc - known = 1.46e-14
+
+ladder           0.77747802228273855   (demo h=0.5 eps=1e-20; est. error 1.5e-14, ~13 digits)
+  PSLQ: 11/48 + pi^2/18    relation [144, -33, -8, 0, 0], residual -3.6e-15
+  known: 11/48 + pi^2/18 = 0.77747802228274214549, Sinc - known = -3.6e-15
+
+Pi2              0.015687421859138045   (demo h=0.5 eps=1e-20; est. error 1.5e-14, ~12 digits)
+  PSLQ: 119/36 - pi^2/3    relation [-36, 119, -12, 0, 0], residual 3.54e-14
+  known: 119/36 - pi^2/3 = 0.015687421859102682611, Sinc - known = 3.54e-14
+
+self-energy      -0.5899780222827421344   (se_qd h=0.4 eps=1e-26; est. error 1.3e-17, ~16 digits)
+  PSLQ: - 1/24 - pi^2/18    relation [72, 3, 4, 0, 0], residual 1.11e-17
+  known: -1/24 - pi^2/18 = -0.58997802228274214549, Sinc - known = 1.11e-17
+
+sum of the two-loop graphs (demo) - A_1^(4) = 3.83e-14
+crossed = A_1^(4) - (closed forms of ladder, corner, self-energy, Pi2) = -0.4676454460936136516
+  vs the literature value -0.467645446094 (12 digits): diff 3.86e-13

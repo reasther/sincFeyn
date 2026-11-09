@@ -98,6 +98,7 @@ data/        the runs behind Figs. 4 and 5 (g3, g4, g5) and Volkov's five-loop r
 tests/       regression runs (make test) and the regeneration checks
 docs/        documentation
 mathematica/ the two-loop Sinc sums in Mathematica, translated from the C kernels
+pslq/        the high-precision two-loop runs (quad-double) behind the PSLQ closed forms of Table I
 ```
 
 ## How this code was written

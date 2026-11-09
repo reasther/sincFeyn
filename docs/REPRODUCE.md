@@ -51,7 +51,9 @@ sh scripts/table1.sh
 ```
 
 Every two-loop graph is compared with its exact value in Volkov's subtraction scheme (the
-closed forms are in Table I and in `driver/graphs.c`). Fig. 2 is the same comparison over a range of h;
+closed forms are in Table I and in `driver/graphs.c`). The closed forms of the corner, ladder,
+self-energy and crossed terms were found by PSLQ on high-precision Sinc sums; `pslq/` reruns those sums
+(about 23 minutes on 4 cores; quad-double for the self-energy) and the PSLQ step (see `pslq/README.md`). Fig. 2 is the same comparison over a range of h;
 `sh scripts/fig2.sh` runs h = 1.60 ... 0.55 in steps of 0.01 (about 6 minutes on 4 cores) and writes the
 signed residuals of every term and of A1^(4) to `fig2/fig2.tsv` for plotting. The self-energy residual
 changes sign between h = 1.21 and 1.20, and the A1^(4) residual between 1.10 and 1.09. By hand:
